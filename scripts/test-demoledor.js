@@ -13,7 +13,7 @@ const bcrypt = require('bcryptjs');
 const Tienda = require('../src/models/Tienda');
 const Usuario = require('../src/models/Usuario');
 const PlanProgreso = require('../src/models/PlanProgreso');
-const { demoledorDeRachas } = require('../src/services/cronJobs');
+const { demoledorDeRachas } = require('../src/modules/jobs/cronJobs');
 const { getInicioDeDiaDeAyer } = require('../src/utils/fechas');
 
 // ---------------------------------------------------------------------------

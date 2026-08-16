@@ -11,7 +11,7 @@ function authMiddleware(req, _res, next) {
   const token = header.split(' ')[1];
 
   try {
-    req.usuario = jwt.verify(token, process.env.JWT_SECRET);
+    req.usuario = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {

@@ -1,4 +1,4 @@
-const { yaCompletoActividadHoy } = require('../src/services/planService');
+const { yaCompletoActividadHoy } = require('../src/modules/plan/plan.service');
 
 function crearPlan(progresoDiario, ultimaFecha) {
   return {

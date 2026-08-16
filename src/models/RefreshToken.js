@@ -11,5 +11,6 @@ const refreshTokenSchema = new Schema({
 
 refreshTokenSchema.index({ fecha_expiracion: 1 }, { expireAfterSeconds: 0 });
 refreshTokenSchema.index({ token_hash: 1 });
+refreshTokenSchema.index({ usuario_id: 1 });
 
 module.exports = mongoose.model('RefreshToken', refreshTokenSchema, 'refresh_tokens');

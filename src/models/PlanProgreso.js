@@ -36,6 +36,7 @@ const planProgresoSchema = new Schema({
   dia_actual: { type: Number, default: 1 },
   racha_dias: { type: Number, default: 0 },
   racha_maxima: { type: Number, default: 0 },
+  racha_rota_en: { type: Date, default: null },
   hitos_alcanzados: { type: [Number], default: [] },
   ultima_fecha_actividad: { type: Date, default: Date.now },
   estado: { type: String, enum: ['activo', 'completado', 'abandonado'], default: 'activo' },
@@ -54,5 +55,12 @@ const planProgresoSchema = new Schema({
 planProgresoSchema.index({ estado: 1, dia_actual: 1 });
 planProgresoSchema.index({ estado: 1, ultima_fecha_actividad: 1 });
 planProgresoSchema.index({ usuario_id: 1, estado: 1 });
+planProgresoSchema.index({ tienda_id: 1, estado: 1 });
+planProgresoSchema.index(
+  { usuario_id: 1 },
+  { unique: true, partialFilterExpression: { estado: 'activo' } }
+);
+
+planProgresoSchema.index({ racha_rota_en: 1 });
 
 module.exports = mongoose.model('PlanProgreso', planProgresoSchema, 'planes_progreso');
