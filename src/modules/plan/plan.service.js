@@ -88,6 +88,12 @@ async function getCabeceraSiEsInicioDeBloque(diaNumero) {
   return contenido?.conclusion || null;
 }
 
+async function getConclusionSiEsCierreDeBloque(diaNumero) {
+  if (!DIAS_CIERRE_BLOQUE.includes(diaNumero)) return null;
+  const contenido = await ContenidoDiario.findOne({ dia_numero: diaNumero }).select('conclusion').lean();
+  return contenido?.conclusion || null;
+}
+
 /**
  * Marca el dia_actual del plan como completado de forma atomica:
  * - actualiza el elemento correcto de progreso_diario via operador posicional $

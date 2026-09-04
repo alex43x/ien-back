@@ -8,7 +8,10 @@ const RefreshToken = require('../../models/RefreshToken');
 const PasswordResetToken = require('../../models/PasswordResetToken');
 const Producto = require('../../models/Producto');
 const AppError = require('../../utils/AppError');
+<<<<<<< HEAD
 const { isValidEmail, isValidPasswordLength } = require('../../utils/validators');
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 const { enviarCorreo } = require('../email/email.service');
 const { bienvenida, recuperacionContrasena } = require('../email/templates');
 
@@ -49,6 +52,7 @@ exports.validateCode = async (codigo_activacion) => {
 };
 
 exports.register = async ({ nombre, email, password, codigo_activacion, hora_recordatorio, minuto_recordatorio }) => {
+<<<<<<< HEAD
   if (!nombre || !email || !password || !codigo_activacion || typeof email !== 'string' || typeof password !== 'string' || typeof codigo_activacion !== 'string') {
     throw new AppError(400, 'Todos los campos son requeridos');
   }
@@ -61,6 +65,12 @@ exports.register = async ({ nombre, email, password, codigo_activacion, hora_rec
     throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
+=======
+  if (typeof email !== 'string' || typeof password !== 'string' || typeof codigo_activacion !== 'string') {
+    throw new AppError(400, 'Todos los campos son requeridos');
+  }
+
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   const codDoc = await Codigo.findOne({ codigo: codigo_activacion, activo: true });
   if (!codDoc) {
     throw new AppError(404, 'Código de activación inválido');
@@ -123,6 +133,7 @@ exports.register = async ({ nombre, email, password, codigo_activacion, hora_rec
 };
 
 exports.login = async ({ email, password }) => {
+<<<<<<< HEAD
   if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
     throw new AppError(400, 'Email y contraseña requeridos');
   }
@@ -131,6 +142,12 @@ exports.login = async ({ email, password }) => {
     throw new AppError(400, 'Email inválido');
   }
 
+=======
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    throw new AppError(400, 'Email y contraseña requeridos');
+  }
+
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   const usuario = await Usuario.findOne({ email }).lean();
   if (!usuario) {
     throw new AppError(401, 'Credenciales inválidas');
@@ -181,6 +198,7 @@ exports.logout = async (refreshTokenPlano) => {
 };
 
 exports.forgotPassword = async (email) => {
+<<<<<<< HEAD
   if (!email || typeof email !== 'string') {
     throw new AppError(400, 'Email requerido');
   }
@@ -189,6 +207,12 @@ exports.forgotPassword = async (email) => {
     throw new AppError(400, 'Email inválido');
   }
 
+=======
+  if (typeof email !== 'string') {
+    throw new AppError(400, 'Email requerido');
+  }
+
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
   const usuario = await Usuario.findOne({ email });
@@ -240,6 +264,7 @@ exports.verifyResetToken = async (token) => {
 };
 
 exports.resetPassword = async (token, nuevaPassword) => {
+<<<<<<< HEAD
   if (!token || !nuevaPassword || typeof token !== 'string' || typeof nuevaPassword !== 'string') {
     throw new AppError(400, 'Token y nueva contraseña requeridos');
   }
@@ -248,6 +273,12 @@ exports.resetPassword = async (token, nuevaPassword) => {
     throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
+=======
+  if (typeof token !== 'string' || typeof nuevaPassword !== 'string') {
+    throw new AppError(400, 'Token y nueva contraseña requeridos');
+  }
+
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   const token_hash = crypto.createHash('sha256').update(token).digest('hex');
   const doc = await PasswordResetToken.findOneAndUpdate(
     { token_hash, usado: false, fecha_expiracion: { $gt: new Date() } },
@@ -276,6 +307,7 @@ exports.resetPassword = async (token, nuevaPassword) => {
 };
 
 exports.changePassword = async (userId, currentPassword, nuevaPassword) => {
+<<<<<<< HEAD
   if (!currentPassword || !nuevaPassword || typeof currentPassword !== 'string' || typeof nuevaPassword !== 'string') {
     throw new AppError(400, 'Contraseña actual y nueva contraseña requeridas');
   }
@@ -284,6 +316,12 @@ exports.changePassword = async (userId, currentPassword, nuevaPassword) => {
     throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
+=======
+  if (typeof currentPassword !== 'string' || typeof nuevaPassword !== 'string') {
+    throw new AppError(400, 'Contraseña actual y nueva contraseña requeridas');
+  }
+
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   const usuario = await Usuario.findById(userId);
   if (!usuario) {
     throw new AppError(404, 'Usuario no encontrado');

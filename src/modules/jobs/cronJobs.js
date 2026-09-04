@@ -112,6 +112,7 @@ async function findUsuariosParaRecuperar() {
   ]);
 }
 
+<<<<<<< HEAD
 /**
  * Planes activos sin actividad por 30+ días → candidatos a abandono.
  * Proyecta plan_id (id del plan), usuario_id (id real del usuario) y datos
@@ -176,3 +177,6 @@ module.exports = {
   findPlanesParaAbandonar,
   findPlanesParaReiniciar
 };
+=======
+module.exports = { findUsuariosRezagados, demoledorDeRachas, findUsuariosSinActivar, findUsuariosParaRecuperar };
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91

@@ -2,7 +2,10 @@ const { validateCode, register, login, refreshToken, logout, forgotPassword, ver
 const { tryCatch } = require('../../middlewares/errorHandler');
 const AppError = require('../../utils/AppError');
 const Usuario = require('../../models/Usuario');
+<<<<<<< HEAD
 const { isValidEmail, isValidPasswordLength } = require('../../utils/validators');
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 
 exports.validateCode = tryCatch(async (req, res) => {
   const { codigo_activacion } = req.body;
@@ -27,6 +30,7 @@ exports.register = tryCatch(async (req, res) => {
     throw new AppError(400, 'Todos los campos son requeridos');
   }
 
+<<<<<<< HEAD
   if (!isValidEmail(email)) {
     throw new AppError(400, 'Email inválido');
   }
@@ -35,6 +39,8 @@ exports.register = tryCatch(async (req, res) => {
     throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   const result = await register({ nombre, email, password, codigo_activacion, hora_recordatorio, minuto_recordatorio });
 
   res.status(201).json(result);
@@ -112,10 +118,13 @@ exports.forgotPassword = tryCatch(async (req, res) => {
     throw new AppError(400, 'Email requerido');
   }
 
+<<<<<<< HEAD
   if (!isValidEmail(email)) {
     throw new AppError(400, 'Email inválido');
   }
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   await forgotPassword(email);
 
   res.json({ mensaje: 'Si el email está registrado, recibirás un enlace de recuperación' });
@@ -139,10 +148,13 @@ exports.resetPassword = tryCatch(async (req, res) => {
     throw new AppError(400, 'Token y nueva contraseña requeridos');
   }
 
+<<<<<<< HEAD
   if (!isValidPasswordLength(nueva_password, 8)) {
     throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   const result = await resetPassword(token, nueva_password);
   res.json(result);
 });
@@ -154,10 +166,13 @@ exports.changePassword = tryCatch(async (req, res) => {
     throw new AppError(400, 'Contraseña actual y nueva contraseña requeridas');
   }
 
+<<<<<<< HEAD
   if (!isValidPasswordLength(nueva_password, 8)) {
     throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   const result = await changePassword(req.usuario.id, current_password, nueva_password);
   res.json(result);
 });

@@ -55,6 +55,7 @@ describe('Admin - CRUD admin-negocio', () => {
     expect(res.status).toBe(400);
   });
 
+<<<<<<< HEAD
   test('POST /api/admin/usuarios/admin-negocio - invalid email', async () => {
     const res = await request(app)
       .post('/api/admin/usuarios/admin-negocio')
@@ -83,6 +84,8 @@ describe('Admin - CRUD admin-negocio', () => {
     expect(res.body.error).toBe('La contraseña debe tener al menos 8 caracteres');
   });
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   test('GET /api/admin/usuarios/admin-negocio/:id - get one', async () => {
     const res = await request(app)
       .get(`/api/admin/usuarios/admin-negocio/${data.adminNegocio._id}`)
@@ -168,6 +171,7 @@ describe('Admin - CRUD moderador-tienda', () => {
     expect(res.status).toBe(400);
   });
 
+<<<<<<< HEAD
   test('POST /api/admin/usuarios/moderador-tienda - invalid email', async () => {
     const res = await request(app)
       .post('/api/admin/usuarios/moderador-tienda')
@@ -196,6 +200,8 @@ describe('Admin - CRUD moderador-tienda', () => {
     expect(res.body.error).toBe('La contraseña debe tener al menos 8 caracteres');
   });
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   test('GET /api/admin/usuarios/moderador-tienda/:id - get one', async () => {
     const res = await request(app)
       .get(`/api/admin/usuarios/moderador-tienda/${data.moderador._id}`)
@@ -204,7 +210,10 @@ describe('Admin - CRUD moderador-tienda', () => {
     expect(res.body.email).toBe(data.moderador.email);
   });
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   test('PUT /api/admin/usuarios/moderador-tienda/:id - update', async () => {
     const res = await request(app)
       .put(`/api/admin/usuarios/moderador-tienda/${data.moderador._id}`)

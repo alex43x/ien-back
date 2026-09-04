@@ -5,8 +5,12 @@ const { seed } = require('./helpers/seed');
 const PlanProgreso = require('../src/models/PlanProgreso');
 const Usuario = require('../src/models/Usuario');
 const HistorialCorreo = require('../src/models/HistorialCorreo');
+<<<<<<< HEAD
 const { demoledorDeRachas, findUsuariosRezagados, findPlanesParaAbandonar, findPlanesParaReiniciar } = require('../src/modules/jobs/cronJobs');
 const { abandonarPlanesYNotificar, reiniciarPlanesYNotificar } = require('../src/modules/jobs/job.service');
+=======
+const { demoledorDeRachas, findUsuariosRezagados } = require('../src/modules/jobs/cronJobs');
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 let app;
 
 beforeAll(async () => {
@@ -236,6 +240,7 @@ describe('send-reminders - deduplicación', () => {
     expect(res.body.enviados).toBe(0);
   });
 });
+<<<<<<< HEAD
 
 describe('findPlanesParaAbandonar - 30 días de inactividad', () => {
   beforeEach(async () => { await seed(); });
@@ -380,3 +385,5 @@ describe('reactivarSiAbandonado - reset completo al volver', () => {
     expect(plan).toBeNull();
   });
 });
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91

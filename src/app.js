@@ -44,12 +44,16 @@ const swaggerAuth = (req, res, next) => {
   const user = process.env.SWAGGER_USER;
   const pass = process.env.SWAGGER_PASS;
 
+<<<<<<< HEAD
   if (!user || !pass) {
     if (process.env.NODE_ENV === 'production') {
       return res.status(404).json({ error: 'Ruta no encontrada' });
     }
     return next();
   }
+=======
+  if (!user || !pass) return next();
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 
   const auth = (req.headers.authorization || '');
   if (!auth.startsWith('Basic ')) {
@@ -63,12 +67,16 @@ const swaggerAuth = (req, res, next) => {
   next();
 };
 
+<<<<<<< HEAD
 app.get('/api-docs/swagger.json', swaggerAuth, (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   res.json(getSwaggerSpec(baseUrl));
 });
 
 app.use('/api-docs', swaggerAuth, swaggerUi.serve, swaggerUi.setup(null, { swaggerUrl: '/api-docs/swagger.json' }));
+=======
+app.use('/api-docs', swaggerAuth, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 
 // Routes
 app.use('/api/auth', authRoutes);

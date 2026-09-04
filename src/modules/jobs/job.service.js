@@ -1,8 +1,15 @@
+<<<<<<< HEAD
 const { demoledorDeRachas, findUsuariosRezagados, findUsuariosSinActivar, findUsuariosParaRecuperar, findPlanesParaAbandonar, findPlanesParaReiniciar } = require('./cronJobs');
 const PlanProgreso = require('../../models/PlanProgreso');
 const Usuario = require('../../models/Usuario');
 const { enviarCorreo, enviarEnLote, yaSeEnvio, yaSeEnviaronBatch } = require('../email/email.service');
 const { recordatorioDiario, rachaRota, urgenciaActivacion, recuperacionInactividad, planReiniciado, planAbandonado } = require('../email/templates');
+=======
+const { demoledorDeRachas, findUsuariosRezagados, findUsuariosSinActivar, findUsuariosParaRecuperar } = require('./cronJobs');
+const Usuario = require('../../models/Usuario');
+const { enviarCorreo, enviarEnLote, yaSeEnvio, yaSeEnviaronBatch } = require('../email/email.service');
+const { recordatorioDiario, rachaRota, urgenciaActivacion, recuperacionInactividad } = require('../email/templates');
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 
 async function sendReminders() {
   const ahora = new Date();
@@ -63,6 +70,7 @@ async function enviarRecoveryEmails() {
   });
 }
 
+<<<<<<< HEAD
 /**
  * Marca como abandonado (estado='abandonado') a los planes activos sin
  * actividad por 30+ días, y notifica por correo a cada usuario.
@@ -150,3 +158,6 @@ module.exports = {
   abandonarPlanesYNotificar,
   reiniciarPlanesYNotificar
 };
+=======
+module.exports = { demoledorDeRachas, sendReminders, resetStreaksYNotificar, enviarActivationNudges, enviarRecoveryEmails };
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91

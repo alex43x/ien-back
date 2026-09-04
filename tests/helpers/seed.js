@@ -61,9 +61,12 @@ async function seed() {
     email: `admin-general-${uid}@test.com`,
     password_hash: await bcrypt.hash('admin123', 4),
     rol: 'admin_general',
+<<<<<<< HEAD
     tienda_id: tienda1._id,
     producto_id: producto1._id,
     codigo_activacion: codigo1.codigo,
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
     fecha_registro: new Date()
   });
 

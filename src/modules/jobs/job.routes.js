@@ -1,7 +1,11 @@
   const { Router } = require('express');
   const rateLimit = require('express-rate-limit');
 const apiKeyMiddleware = require('../../middlewares/apiKeyMiddleware');
+<<<<<<< HEAD
 const { resetStreaks, sendReminders, sendActivationNudge, sendRecovery, runDaily, abandonPlans, restartPlans } = require('./job.controller');
+=======
+const { resetStreaks, sendReminders, sendActivationNudge, sendRecovery, runDaily } = require('./job.controller');
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 
   const router = Router();
 
@@ -122,6 +126,7 @@ router.post('/send-recovery', sendRecovery);
 
 /**
  * @swagger
+<<<<<<< HEAD
  * /api/jobs/abandon-plans:
  *   post:
  *     summary: Marcar como abandonados los planes sin actividad por 30+ días y notificar
@@ -175,21 +180,33 @@ router.post('/restart-plans', restartPlans);
  * /api/jobs/run-daily:
  *   post:
  *     summary: Ejecutar las tareas diarias nocturnas (abandonar, reiniciar, reset streaks, activation nudges, recovery emails)
+=======
+ * /api/jobs/run-daily:
+ *   post:
+ *     summary: Ejecutar las tareas diarias nocturnas (reset streaks, activation nudges, recovery emails)
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
  *     tags: [Jobs]
  *     security:
  *       - apiKeyAuth: []
  *     responses:
  *       200:
+<<<<<<< HEAD
  *         description: Resultado combinado de las 5 tareas
+=======
+ *         description: Resultado combinado de las 3 tareas
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
+<<<<<<< HEAD
  *                 abandon:
  *                   type: object
  *                 restart:
  *                   type: object
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
  *                 reset:
  *                   type: object
  *                 nudges:

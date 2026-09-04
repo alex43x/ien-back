@@ -1,7 +1,10 @@
 const { Router } = require('express');
 const authMiddleware = require('../../middlewares/authMiddleware');
+<<<<<<< HEAD
 const adminMiddleware = require('../../middlewares/adminMiddleware');
 const { requireRol } = require('../../middlewares/roleMiddleware');
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 const { setupTest, getTestInicial, today, profile, days, completeDay, advanceDay, retreatDay, autocompleteTest, getTestPreguntas, getBienvenida } = require('./plan.controller');
 
 const router = Router();
@@ -552,6 +555,10 @@ router.post('/testing/retreat', retreatDay);
  *       409:
  *         description: El usuario ya tiene un plan
  */
+<<<<<<< HEAD
 router.post('/testing/autocomplete-test', adminMiddleware, requireRol('admin_general', 'admin_negocio'), autocompleteTest);
+=======
+router.post('/testing/autocomplete-test', autocompleteTest);
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 
 module.exports = router;

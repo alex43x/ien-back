@@ -6,7 +6,10 @@ const PlanProgreso = require('../../models/PlanProgreso');
 const TestPregunta = require('../../models/TestPregunta');
 const ContenidoDiario = require('../../models/ContenidoDiario');
 const AppError = require('../../utils/AppError');
+<<<<<<< HEAD
 const { isValidEmail, isValidPasswordLength } = require('../../utils/validators');
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 const { getInicioDeDiaDeAyer, getInicioDeDiaDeHoy, getFechaHaceDias, getInicioDeDiaDeAnteayer } = require('../../utils/fechas');
 const { enScope } = require('../../utils/scope');
 const { mapearCamposRespuesta } = require('../../utils/camposRespuesta');
@@ -282,6 +285,7 @@ exports.crearAdminNegocio = async ({ nombre, email, password, tiendas_administra
     throw new AppError(400, 'nombre, email y password son requeridos');
   }
 
+<<<<<<< HEAD
   if (!isValidEmail(email)) {
     throw new AppError(400, 'Email inválido');
   }
@@ -290,6 +294,8 @@ exports.crearAdminNegocio = async ({ nombre, email, password, tiendas_administra
     throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   if (!tiendas_administradas || !Array.isArray(tiendas_administradas) || tiendas_administradas.length === 0) {
     throw new AppError(400, 'Debe asignar al menos una tienda');
   }
@@ -325,6 +331,7 @@ exports.crearModeradorTienda = async ({ nombre, email, password, tienda_id }, cr
     throw new AppError(400, 'nombre, email, password y tienda_id son requeridos');
   }
 
+<<<<<<< HEAD
   if (!isValidEmail(email)) {
     throw new AppError(400, 'Email inválido');
   }
@@ -333,6 +340,8 @@ exports.crearModeradorTienda = async ({ nombre, email, password, tienda_id }, cr
     throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   if (creador.rol === 'admin_negocio') {
     const estaEnScope = (creador.tiendas_administradas || [])
       .some((t) => t.toString() === tienda_id.toString());
@@ -396,7 +405,10 @@ exports.actualizarAdminNegocio = async (usuarioId, { nombre, email, tiendas_admi
   if (!usuario) throw new AppError(404, 'Administrador de negocio no encontrado');
 
   if (email && email !== usuario.email) {
+<<<<<<< HEAD
     if (!isValidEmail(email)) throw new AppError(400, 'Email inválido');
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
     const existe = await Usuario.findOne({ email });
     if (existe) throw new AppError(409, 'El email ya está registrado');
   }
@@ -480,7 +492,10 @@ exports.actualizarModeradorTienda = async (usuarioId, { nombre, email, tienda_id
   }
 
   if (email && email !== usuario.email) {
+<<<<<<< HEAD
     if (!isValidEmail(email)) throw new AppError(400, 'Email inválido');
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
     const existe = await Usuario.findOne({ email });
     if (existe) throw new AppError(409, 'El email ya está registrado');
   }

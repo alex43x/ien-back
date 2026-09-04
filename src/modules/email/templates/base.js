@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // Escape seguro de HTML para datos que vienen del usuario o de la DB.
 // Solo se aplica a valores dinamicos interpolados dentro de las etiquetas
 // propias del template. NO se aplica a URLs (resetUrl/baseUrl): son generadas
@@ -12,6 +13,8 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 const C = {
   gold: "#F0BC48",
   teal: "#6DBFAA",
@@ -118,7 +121,11 @@ function signoff(tienda) {
   return `
   <p style="margin:0;font-family:${FONT.inter};font-size:15px;color:${C.text};line-height:1.7;">
     Con cariño,<br/>
+<<<<<<< HEAD
     <span style="font-weight:500;">Equipo IEN${tienda ? ' \u00B7 ' + escapeHtml(tienda) : ''}</span>
+=======
+    <span style="font-weight:500;">Equipo IEN${tienda ? ' \u00B7 ' + tienda : ''}</span>
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
   </p>`;
 }
 
@@ -146,4 +153,8 @@ function brandFooter() {
   </tr>`;
 }
 
+<<<<<<< HEAD
 module.exports = { C, FONT, escapeHtml, wrap, header, footer, brandFooter, card, spacer, btn, label, title, body, signoff };
+=======
+module.exports = { C, FONT, wrap, header, footer, brandFooter, card, spacer, btn, label, title, body, signoff };
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91

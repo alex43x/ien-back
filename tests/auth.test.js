@@ -105,6 +105,7 @@ describe('Auth - register', () => {
       });
     expect(res.status).toBe(404);
   });
+<<<<<<< HEAD
 
   test('POST /api/auth/register - invalid email format', async () => {
     const res = await request(app)
@@ -131,6 +132,8 @@ describe('Auth - register', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('La contraseña debe tener al menos 8 caracteres');
   });
+=======
+>>>>>>> 317d38c70d6a3dbdd5746502de469fe5ef92be91
 });
 
 describe('Auth - login', () => {
