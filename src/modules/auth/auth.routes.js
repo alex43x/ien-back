@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const crypto = require('crypto');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { validateCode, register, login, refresh, logout, profile, forgotPassword, verifyResetToken, resetPassword, changePassword } = require('./auth.controller');
 const authMiddleware = require('../../middlewares/authMiddleware');
@@ -38,16 +39,17 @@ const loginEmailLimiter = isTest ? noop : rateLimit({
   message: { error: 'Demasiados intentos, intentá de nuevo en 5 minutos' }
 });
 
-// TODO: limitar por usuario autenticado (keyGenerator: (req) => req.usuario?.id || req.ip)
-// en lugar de solo por IP. Hoy no es posible porque no existe una utilidad que decodifique
-// el JWT sin verificar la expiración: /refresh no pasa por authMiddleware (req.usuario nunca
-// está definido en este endpoint) y el access_token casi siempre llega vencido, por lo que
-// jwt.verify lo rechazaría. Hasta que exista esa utilidad, se usa la clave por defecto (req.ip).
+// Se limita por sesión (hash del refresh token) en vez de por IP, para no castigar a
+// usuarios detrás de una IP compartida (NAT). Si no viene refresh_token, cae a la IP.
 const refreshLimiter = isTest ? noop : rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 50,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    const rt = typeof req.body?.refresh_token === 'string' ? req.body.refresh_token : '';
+    return rt ? crypto.createHash('sha256').update(rt).digest('hex') : ipKeyGenerator(req);
+  },
   message: { error: 'Demasiados intentos, intentá de nuevo en 5 minutos' }
 });
 
