@@ -38,6 +38,19 @@ const loginEmailLimiter = isTest ? noop : rateLimit({
   message: { error: 'Demasiados intentos, intentá de nuevo en 5 minutos' }
 });
 
+// TODO: limitar por usuario autenticado (keyGenerator: (req) => req.usuario?.id || req.ip)
+// en lugar de solo por IP. Hoy no es posible porque no existe una utilidad que decodifique
+// el JWT sin verificar la expiración: /refresh no pasa por authMiddleware (req.usuario nunca
+// está definido en este endpoint) y el access_token casi siempre llega vencido, por lo que
+// jwt.verify lo rechazaría. Hasta que exista esa utilidad, se usa la clave por defecto (req.ip).
+const refreshLimiter = isTest ? noop : rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos, intentá de nuevo en 5 minutos' }
+});
+
 const resetLimiter = isTest ? noop : rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 3,
@@ -237,7 +250,7 @@ router.post('/login', loginLimiter, loginEmailLimiter, login);
  *       401:
  *         description: Refresh token inválido o expirado
  */
-router.post('/refresh', authLimiter, refresh);
+router.post('/refresh', refreshLimiter, refresh);
 
 /**
  * @swagger
