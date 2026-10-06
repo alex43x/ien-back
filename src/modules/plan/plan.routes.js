@@ -468,7 +468,7 @@ router.post('/complete-day', completeDay);
  *       404:
  *         description: No hay plan activo
  */
-router.post('/testing/advance', adminMiddleware, requireRol('admin_general', 'admin_negocio'), advanceDay);
+router.post('/testing/advance', advanceDay);
 
 /**
  * @swagger
@@ -501,7 +501,7 @@ router.post('/testing/advance', adminMiddleware, requireRol('admin_general', 'ad
  *       409:
  *         description: No hay días completados para retroceder
  */
-router.post('/testing/retreat', adminMiddleware, requireRol('admin_general', 'admin_negocio'), retreatDay);
+router.post('/testing/retreat', retreatDay);
 
 /**
  * @swagger

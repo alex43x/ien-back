@@ -18,6 +18,7 @@ async function seed() {
   const uid = `${ts}-${counter}`;
 
   const Tienda = mongoose.model('Tienda');
+  const Grupo = mongoose.model('Grupo');
   const Producto = mongoose.model('Producto');
   const Codigo = mongoose.model('Codigo');
   const Usuario = mongoose.model('Usuario');
@@ -25,11 +26,16 @@ async function seed() {
   const ContenidoEspecial = mongoose.model('ContenidoEspecial');
   const ContenidoDiario = mongoose.model('ContenidoDiario');
 
-  const tienda1 = await Tienda.create({ nombre_tienda: `Sucursal Norte ${uid}`, ciudad: 'Bogota' });
-  const tienda2 = await Tienda.create({ nombre_tienda: `Sucursal Sur ${uid}`, ciudad: 'Medellin' });
+  // Un grupo por tienda: preserva el aislamiento tienda1/tienda2 que
+  // esperan los tests de scope cuando el scope pasa a ser por grupo
+  const grupo1 = await Grupo.create({ nombre: `Grupo Norte ${uid}` });
+  const grupo2 = await Grupo.create({ nombre: `Grupo Sur ${uid}` });
 
-  const producto1 = await Producto.create({ nombre: `Plan Premium ${uid}`, descripcion: 'Plan completo', tienda_id: tienda1._id });
-  const producto2 = await Producto.create({ nombre: `Plan Basico ${uid}`, descripcion: 'Plan basico', tienda_id: tienda2._id });
+  const tienda1 = await Tienda.create({ nombre_tienda: `Sucursal Norte ${uid}`, ciudad: 'Bogota', grupo_id: grupo1._id });
+  const tienda2 = await Tienda.create({ nombre_tienda: `Sucursal Sur ${uid}`, ciudad: 'Medellin', grupo_id: grupo2._id });
+
+  const producto1 = await Producto.create({ nombre: `Plan Premium ${uid}`, descripcion: 'Plan completo', grupo_id: grupo1._id });
+  const producto2 = await Producto.create({ nombre: `Plan Basico ${uid}`, descripcion: 'Plan basico', grupo_id: grupo2._id });
 
   const codigo1 = await Codigo.create({ codigo: `COD-${uid}-001`, producto_id: producto1._id, tienda_id: tienda1._id, activo: true });
   const codigo2 = await Codigo.create({ codigo: `COD-${uid}-002`, producto_id: producto2._id, tienda_id: tienda2._id, activo: true });
@@ -61,6 +67,9 @@ async function seed() {
     email: `admin-general-${uid}@test.com`,
     password_hash: await bcrypt.hash('admin123', 4),
     rol: 'admin_general',
+    tienda_id: tienda1._id,
+    producto_id: producto1._id,
+    codigo_activacion: codigo1.codigo,
     fecha_registro: new Date()
   });
 
@@ -69,7 +78,7 @@ async function seed() {
     email: `admin-negocio-${uid}@test.com`,
     password_hash: await bcrypt.hash('admin123', 4),
     rol: 'admin_negocio',
-    tiendas_administradas: [tienda1._id],
+    grupo_id: grupo1._id,
     fecha_registro: new Date()
   });
 
@@ -78,7 +87,7 @@ async function seed() {
     email: `admin-negocio2-${uid}@test.com`,
     password_hash: await bcrypt.hash('admin123', 4),
     rol: 'admin_negocio',
-    tiendas_administradas: [tienda2._id],
+    grupo_id: grupo2._id,
     fecha_registro: new Date()
   });
 
@@ -103,6 +112,7 @@ async function seed() {
   });
 
   return {
+    grupos: [grupo1, grupo2],
     tiendas: [tienda1, tienda2],
     productos: [producto1, producto2],
     codigos: [codigo1, codigo2],
@@ -111,6 +121,8 @@ async function seed() {
     adminGeneral2,
     moderador,
     usuario,
+    grupo1Id: grupo1._id.toString(),
+    grupo2Id: grupo2._id.toString(),
     tienda1Id: tienda1._id.toString(),
     tienda2Id: tienda2._id.toString(),
     producto1Id: producto1._id.toString(),

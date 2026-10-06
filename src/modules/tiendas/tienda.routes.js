@@ -6,8 +6,7 @@ const { requireRol } = require('../../middlewares/roleMiddleware');
 const sucursalCtrl = require('./tienda.controller');
 
 const router = Router();
-router.use(authMiddleware, adminMiddleware, scopeTiendaMiddleware,
-  requireRol('admin_negocio', 'admin_general'));
+router.use(authMiddleware, adminMiddleware, scopeTiendaMiddleware);
 
 /**
  * @swagger
@@ -38,7 +37,7 @@ router.use(authMiddleware, adminMiddleware, scopeTiendaMiddleware,
  *       403:
  *         description: Acceso no autorizado
  */
-router.get('/', sucursalCtrl.listar);
+router.get('/', requireRol('admin_negocio', 'admin_general', 'moderador_tienda'), sucursalCtrl.listar);
 
 /**
  * @swagger
@@ -57,16 +56,20 @@ router.get('/', sucursalCtrl.listar);
  *             required:
  *               - nombre_tienda
  *               - ciudad
+ *               - grupo_id
  *             properties:
  *               nombre_tienda:
  *                 type: string
  *               ciudad:
  *                 type: string
+ *               grupo_id:
+ *                 type: string
+ *                 description: ID del grupo al que pertenece la sucursal
  *     responses:
  *       201:
  *         description: Sucursal creada exitosamente
  *       400:
- *         description: Falta nombre_tienda o ciudad
+ *         description: Faltan nombre_tienda, ciudad o grupo_id, o el grupo no existe
  *       403:
  *         description: Denegado (solo admin_general)
  */
@@ -97,9 +100,14 @@ router.post('/', requireRol('admin_general'), sucursalCtrl.crear);
  *                 type: string
  *               ciudad:
  *                 type: string
+ *               grupo_id:
+ *                 type: string
+ *                 description: Reasignar la sucursal a otro grupo (opcional)
  *     responses:
  *       200:
  *         description: Sucursal actualizada
+ *       400:
+ *         description: El grupo indicado no existe
  *       403:
  *         description: Fuera de scope o sin permisos
  *       404:

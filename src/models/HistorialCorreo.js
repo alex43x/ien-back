@@ -6,7 +6,7 @@ const historialCorreoSchema = new Schema({
   email_destino: { type: String, required: true },
   tipo_correo: {
     type: String,
-    enum: ['bienvenida', 'urgencia_activacion', 'hito', 'racha_rota', 'recuperacion_inactividad', 'recordatorio_diario', 'recuperacion_contrasena'],
+    enum: ['bienvenida', 'urgencia_activacion', 'hito', 'racha_rota', 'recuperacion_inactividad', 'recordatorio_diario', 'recuperacion_contrasena', 'plan_abandonado', 'plan_reiniciado'],
     required: true
   },
   meta: { type: Schema.Types.Mixed },

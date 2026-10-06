@@ -5,6 +5,8 @@ const { rachaRota } = require('./rachaRota');
 const { urgenciaActivacion } = require('./urgenciaActivacion');
 const { recuperacionInactividad } = require('./recuperacionInactividad');
 const { recuperacionContrasena } = require('./recuperacionContrasena');
+const { planReiniciado } = require('./planReiniciado');
+const { planAbandonado } = require('./planAbandonado');
 
 module.exports = {
   bienvenida,
@@ -14,4 +16,6 @@ module.exports = {
   urgenciaActivacion,
   recuperacionInactividad,
   recuperacionContrasena,
+  planReiniciado,
+  planAbandonado,
 };

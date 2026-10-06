@@ -92,12 +92,12 @@ async function findUsuariosSinActivar() {
 }
 
 async function findUsuariosParaRecuperar() {
-  const hace7Dias = getFechaHaceDias(7);
+  const hace3Dias = getFechaHaceDias(3);
   return PlanProgreso.aggregate([
     {
       $match: {
         estado: 'activo',
-        ultima_fecha_actividad: { $lte: hace7Dias },
+        ultima_fecha_actividad: { $lte: hace3Dias },
         $expr: {
           $eq: [
             { $arrayElemAt: ['$progreso_diario.completado', { $subtract: ['$dia_actual', 1] }] },
@@ -112,4 +112,67 @@ async function findUsuariosParaRecuperar() {
   ]);
 }
 
-module.exports = { findUsuariosRezagados, demoledorDeRachas, findUsuariosSinActivar, findUsuariosParaRecuperar };
+/**
+ * Planes activos sin actividad por 30+ días → candidatos a abandono.
+ * Proyecta plan_id (id del plan), usuario_id (id real del usuario) y datos
+ * del usuario para el correo de notificación.
+ */
+async function findPlanesParaAbandonar() {
+  const hace30Dias = getFechaHaceDias(30);
+  return PlanProgreso.aggregate([
+    { $match: { estado: 'activo', ultima_fecha_actividad: { $lte: hace30Dias } } },
+    { $lookup: { from: 'usuarios', localField: 'usuario_id', foreignField: '_id', as: 'usuario' } },
+    { $unwind: '$usuario' },
+    {
+      $project: {
+        _id: 0,
+        plan_id: '$_id',
+        usuario_id: 1,
+        dia_actual: 1,
+        racha_dias: 1,
+        nombre: '$usuario.nombre',
+        email: '$usuario.email'
+      }
+    }
+  ]);
+}
+
+/**
+ * Planes activos sin actividad por 7+ días que ya avanzaron más allá del día 1
+ * → candidatos a reinicio (reset parcial). No toca ultima_fecha_actividad para
+ * no alterar el reloj de 30 días del abandono.
+ */
+async function findPlanesParaReiniciar() {
+  const hace7Dias = getFechaHaceDias(7);
+  return PlanProgreso.aggregate([
+    {
+      $match: {
+        estado: 'activo',
+        ultima_fecha_actividad: { $lte: hace7Dias },
+        dia_actual: { $gt: 1 }
+      }
+    },
+    { $lookup: { from: 'usuarios', localField: 'usuario_id', foreignField: '_id', as: 'usuario' } },
+    { $unwind: '$usuario' },
+    {
+      $project: {
+        _id: 0,
+        plan_id: '$_id',
+        usuario_id: 1,
+        dia_actual: 1,
+        racha_dias: 1,
+        nombre: '$usuario.nombre',
+        email: '$usuario.email'
+      }
+    }
+  ]);
+}
+
+module.exports = {
+  findUsuariosRezagados,
+  demoledorDeRachas,
+  findUsuariosSinActivar,
+  findUsuariosParaRecuperar,
+  findPlanesParaAbandonar,
+  findPlanesParaReiniciar
+};

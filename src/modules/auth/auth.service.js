@@ -8,10 +8,40 @@ const RefreshToken = require('../../models/RefreshToken');
 const PasswordResetToken = require('../../models/PasswordResetToken');
 const Producto = require('../../models/Producto');
 const AppError = require('../../utils/AppError');
+const { isValidEmail, isValidPasswordLength } = require('../../utils/validators');
 const { enviarCorreo } = require('../email/email.service');
 const { bienvenida, recuperacionContrasena } = require('../email/templates');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+
+// SEG-05: hash dummy precomputado (costo 10, igual que los reales) para que el
+// login con email inexistente ejecute el mismo trabajo bcrypt que el login con
+// email existente y no revele por timing si la cuenta existe.
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-not-used-ien', 10);
+
+// Paraguay opera en UTC-3 (DST permanente desde 2024). La hora que elige el
+// usuario es hora local PY; para guardarla/compararla con el cron la pasamos a UTC.
+const PY_UTC_OFFSET = 3;
+
+function validarHoraRecordatorio(hora) {
+  if (typeof hora !== 'number' || !Number.isInteger(hora) || hora < 0 || hora > 23) {
+    throw new AppError(400, 'La hora de recordatorio debe ser un número entero entre 0 y 23 (hora PY)');
+  }
+}
+
+function validarMinutoRecordatorio(minuto) {
+  if (minuto !== 0 && minuto !== 30) {
+    throw new AppError(400, 'El minuto de recordatorio debe ser 0 o 30');
+  }
+}
+
+function horaPYaUTC(hora) {
+  return (hora + PY_UTC_OFFSET) % 24;
+}
+
+function horaUTCaPY(utc) {
+  return (utc - PY_UTC_OFFSET + 24) % 24;
+}
 
 function generarAccessToken(usuario) {
   return jwt.sign({ id: usuario._id }, JWT_SECRET, { expiresIn: '15m' });
@@ -48,8 +78,16 @@ exports.validateCode = async (codigo_activacion) => {
 };
 
 exports.register = async ({ nombre, email, password, codigo_activacion, hora_recordatorio, minuto_recordatorio }) => {
-  if (typeof email !== 'string' || typeof password !== 'string' || typeof codigo_activacion !== 'string') {
+  if (!nombre || !email || !password || !codigo_activacion || typeof email !== 'string' || typeof password !== 'string' || typeof codigo_activacion !== 'string') {
     throw new AppError(400, 'Todos los campos son requeridos');
+  }
+
+  if (!isValidEmail(email)) {
+    throw new AppError(400, 'Email inválido');
+  }
+
+  if (!isValidPasswordLength(password, 8)) {
+    throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
   const codDoc = await Codigo.findOne({ codigo: codigo_activacion, activo: true });
@@ -70,15 +108,11 @@ exports.register = async ({ nombre, email, password, codigo_activacion, hora_rec
   let hora_recordatorio_utc = undefined;
   let minuto_recordatorio_utc = undefined;
   if (hora_recordatorio !== undefined) {
-    if (typeof hora_recordatorio !== 'number' || !Number.isInteger(hora_recordatorio) || hora_recordatorio < 0 || hora_recordatorio > 23) {
-      throw new AppError(400, 'La hora de recordatorio debe ser un número entero entre 0 y 23 (hora PY)');
-    }
-    hora_recordatorio_utc = (hora_recordatorio + 3) % 24;
+    validarHoraRecordatorio(hora_recordatorio);
+    hora_recordatorio_utc = horaPYaUTC(hora_recordatorio);
   }
   if (minuto_recordatorio !== undefined) {
-    if (minuto_recordatorio !== 0 && minuto_recordatorio !== 30) {
-      throw new AppError(400, 'El minuto de recordatorio debe ser 0 o 30');
-    }
+    validarMinutoRecordatorio(minuto_recordatorio);
     minuto_recordatorio_utc = minuto_recordatorio;
   }
 
@@ -110,16 +144,53 @@ exports.register = async ({ nombre, email, password, codigo_activacion, hora_rec
     })
     .catch(err => console.error('[register] Error en correo de bienvenida:', err.message));
 
-  return { access_token, refresh_token, usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, tiendas_administradas: usuario.tiendas_administradas || [] } };
+  return { access_token, refresh_token, usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, grupo_id: usuario.grupo_id ?? null } };
 };
 
+exports.updateReminderSchedule = async (usuarioId, hora_recordatorio, minuto_recordatorio) => {
+  if (hora_recordatorio === undefined || minuto_recordatorio === undefined) {
+    throw new AppError(400, 'La hora y el minuto de recordatorio son requeridos');
+  }
+
+  validarHoraRecordatorio(hora_recordatorio);
+  validarMinutoRecordatorio(minuto_recordatorio);
+
+  const usuario = await Usuario.findByIdAndUpdate(
+    usuarioId,
+    {
+      $set: {
+        hora_recordatorio_utc: horaPYaUTC(hora_recordatorio),
+        minuto_recordatorio_utc: minuto_recordatorio
+      }
+    },
+    { new: true }
+  ).lean();
+
+  if (!usuario) {
+    throw new AppError(404, 'Usuario no encontrado');
+  }
+
+  return { hora_recordatorio, minuto_recordatorio };
+};
+
+exports.getReminderSchedulePY = (usuario) => ({
+  hora_recordatorio: horaUTCaPY(usuario.hora_recordatorio_utc ?? 13),
+  minuto_recordatorio: usuario.minuto_recordatorio_utc ?? 0
+});
+
 exports.login = async ({ email, password }) => {
-  if (typeof email !== 'string' || typeof password !== 'string') {
+  if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
     throw new AppError(400, 'Email y contraseña requeridos');
+  }
+
+  if (!isValidEmail(email)) {
+    throw new AppError(400, 'Email inválido');
   }
 
   const usuario = await Usuario.findOne({ email }).lean();
   if (!usuario) {
+    // SEG-05: costo constante — mismo trabajo bcrypt que la rama existente.
+    await bcrypt.compare(password, DUMMY_HASH);
     throw new AppError(401, 'Credenciales inválidas');
   }
 
@@ -130,7 +201,7 @@ exports.login = async ({ email, password }) => {
 
   const access_token = generarAccessToken(usuario);
   const refresh_token = await generarRefreshToken(usuario._id);
-  return { access_token, refresh_token, usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, tiendas_administradas: usuario.tiendas_administradas || [] } };
+  return { access_token, refresh_token, usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, grupo_id: usuario.grupo_id ?? null } };
 };
 
 exports.refreshToken = async (refreshTokenPlano) => {
@@ -139,13 +210,16 @@ exports.refreshToken = async (refreshTokenPlano) => {
   }
 
   const token_hash = crypto.createHash('sha256').update(refreshTokenPlano).digest('hex');
-  const doc = await RefreshToken.findOne({ token_hash, revocado: false, fecha_expiracion: { $gt: new Date() } });
+  // SEG-04: consumo atómico — solo una redención concurrente puede ganar el
+  // findOneAndUpdate condicional; el resto ve revocado:true y recibe 401.
+  const doc = await RefreshToken.findOneAndUpdate(
+    { token_hash, revocado: false, fecha_expiracion: { $gt: new Date() } },
+    { $set: { revocado: true } },
+    { new: false }
+  );
   if (!doc) {
     throw new AppError(401, 'Refresh token inválido o expirado');
   }
-
-  doc.revocado = true;
-  await doc.save();
 
   const access_token = generarAccessToken({ _id: doc.usuario_id });
   const refresh_token = await generarRefreshToken(doc.usuario_id);
@@ -158,18 +232,23 @@ exports.logout = async (refreshTokenPlano) => {
   }
 
   const token_hash = crypto.createHash('sha256').update(refreshTokenPlano).digest('hex');
-  const doc = await RefreshToken.findOne({ token_hash, revocado: false });
-  if (doc) {
-    doc.revocado = true;
-    await doc.save();
-  }
+  // SEG-04: revocación atómica (mismo patrón que refreshToken).
+  await RefreshToken.findOneAndUpdate(
+    { token_hash, revocado: false },
+    { $set: { revocado: true } },
+    { new: false }
+  );
 
   return { mensaje: 'Sesión cerrada' };
 };
 
 exports.forgotPassword = async (email) => {
-  if (typeof email !== 'string') {
+  if (!email || typeof email !== 'string') {
     throw new AppError(400, 'Email requerido');
+  }
+
+  if (!isValidEmail(email)) {
+    throw new AppError(400, 'Email inválido');
   }
 
   const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -177,6 +256,25 @@ exports.forgotPassword = async (email) => {
   const usuario = await Usuario.findOne({ email });
 
   if (usuario) {
+    // SEG-06: presupuesto por destinatario (compartido entre réplicas porque
+    // vive en MongoDB, no en el MemoryStore del rate-limiter por IP). Cooldown
+    // de 5 minutos + tope de 5 envíos/24h por cuenta. En exceso se responde el
+    // 200 genérico del controller sin crear token ni enviar correo.
+    const ahora = new Date();
+    const [reciente, enviadosUltimas24h] = await Promise.all([
+      PasswordResetToken.findOne({
+        usuario_id: usuario._id,
+        fecha_creacion: { $gte: new Date(ahora.getTime() - 5 * 60 * 1000) }
+      }).select('_id').lean(),
+      PasswordResetToken.countDocuments({
+        usuario_id: usuario._id,
+        fecha_creacion: { $gte: new Date(ahora.getTime() - 24 * 60 * 60 * 1000) }
+      })
+    ]);
+    if (reciente || enviadosUltimas24h >= 5) {
+      return;
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
     const token_hash = crypto.createHash('sha256').update(token).digest('hex');
     const fecha_expiracion = new Date(Date.now() + 15 * 60 * 1000);
@@ -223,8 +321,12 @@ exports.verifyResetToken = async (token) => {
 };
 
 exports.resetPassword = async (token, nuevaPassword) => {
-  if (typeof token !== 'string' || typeof nuevaPassword !== 'string') {
+  if (!token || !nuevaPassword || typeof token !== 'string' || typeof nuevaPassword !== 'string') {
     throw new AppError(400, 'Token y nueva contraseña requeridos');
+  }
+
+  if (!isValidPasswordLength(nuevaPassword, 8)) {
+    throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
   const token_hash = crypto.createHash('sha256').update(token).digest('hex');
@@ -255,8 +357,12 @@ exports.resetPassword = async (token, nuevaPassword) => {
 };
 
 exports.changePassword = async (userId, currentPassword, nuevaPassword) => {
-  if (typeof currentPassword !== 'string' || typeof nuevaPassword !== 'string') {
+  if (!currentPassword || !nuevaPassword || typeof currentPassword !== 'string' || typeof nuevaPassword !== 'string') {
     throw new AppError(400, 'Contraseña actual y nueva contraseña requeridas');
+  }
+
+  if (!isValidPasswordLength(nuevaPassword, 8)) {
+    throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
   }
 
   const usuario = await Usuario.findById(userId);

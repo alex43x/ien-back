@@ -1,13 +1,15 @@
-const { FONT, C, wrap, header, brandFooter, card, spacer, label, title, body, signoff } = require('./base');
+const { FONT, C, escapeHtml, wrap, header, brandFooter, card, spacer, label, title, body, signoff } = require('./base');
 
+// nombre y tienda vienen del usuario/DB: se escapan antes de interpolar.
+// Las etiquetas propias del template (<strong>, <p>) quedan intactas.
 function bienvenida(nombre, tienda) {
   const html = wrap(`
     ${header()}
     ${card(`
       ${label('Día 0', C.gold)}
       ${title('Tu mente y tu corazón inician un viaje integral hoy')}
-      ${body('Hola, <strong>' + nombre + '</strong>,')}
-      ${body('Gracias por activar tu programa en <strong>' + tienda + '</strong>.')}
+      ${body('Hola, <strong>' + escapeHtml(nombre) + '</strong>,')}
+      ${body('Gracias por activar tu programa en <strong>' + escapeHtml(tienda) + '</strong>.')}
       ${body('Bienvenido/a a <strong>"Cuidamos de tu mente y de tu corazón"</strong>. Estamos muy felices de que hayas decidido dar este paso hacia una salud integral.')}
       ${body('Durante los próximos 30 días, con 5 a 10 min al día, vamos a trabajar el eslabón perdido de la vitalidad: la <strong>Inteligencia Emocional aplicada a la salud</strong>.')}
     `, C.gold)}
@@ -27,7 +29,7 @@ function bienvenida(nombre, tienda) {
     ${spacer()}
     ${brandFooter()}
   `);
-  return { asunto: nombre + ', tu transformación de 30 días comienza hoy', html };
+  return { asunto: escapeHtml(nombre) + ', tu transformación de 30 días comienza hoy', html };
 }
 
 module.exports = { bienvenida };
