@@ -134,7 +134,10 @@ async function marcarDiaCompletado(planId, respuestaUsuario, skipValidation = fa
               in: {
                 $cond: {
                   if: { $eq: ['$$dia.dia_numero', plan.dia_actual] },
-                  then: { $mergeObjects: ['$$dia', { completado: true, fecha_completado: ahora, respuesta_usuario: respuestaUsuario || null }] },
+                  // SEG-02: respuestaUsuario se envuelve en $literal para que MongoDB
+                  // lo almacene como dato literal y nunca lo evalúe como expresión
+                  // de agregación ($field, $$ROOT, $function, ...).
+                  then: { $mergeObjects: ['$$dia', { completado: true, fecha_completado: ahora, respuesta_usuario: { $literal: respuestaUsuario || null } }] },
                   else: '$$dia'
                 }
               }
