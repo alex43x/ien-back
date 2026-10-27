@@ -1,5 +1,6 @@
 require('./Usuario');
 require('./Tienda');
+require('./Grupo');
 require('./Producto');
 require('./Codigo');
 require('./PlanProgreso');
@@ -13,6 +14,7 @@ require('./HistorialCorreo');
 module.exports = {
   Usuario: require('./Usuario'),
   Tienda: require('./Tienda'),
+  Grupo: require('./Grupo'),
   Producto: require('./Producto'),
   Codigo: require('./Codigo'),
   PlanProgreso: require('./PlanProgreso'),

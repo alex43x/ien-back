@@ -1,7 +1,8 @@
-const { validateCode, register, login, refreshToken, logout, forgotPassword, verifyResetToken, resetPassword, changePassword } = require('./auth.service');
+const { validateCode, register, login, refreshToken, logout, forgotPassword, verifyResetToken, resetPassword, changePassword, updateReminderSchedule, getReminderSchedulePY } = require('./auth.service');
 const { tryCatch } = require('../../middlewares/errorHandler');
 const AppError = require('../../utils/AppError');
 const Usuario = require('../../models/Usuario');
+const { isValidEmail, isValidPasswordLength } = require('../../utils/validators');
 
 exports.validateCode = tryCatch(async (req, res) => {
   const { codigo_activacion } = req.body;
@@ -26,6 +27,14 @@ exports.register = tryCatch(async (req, res) => {
     throw new AppError(400, 'Todos los campos son requeridos');
   }
 
+  if (!isValidEmail(email)) {
+    throw new AppError(400, 'Email inválido');
+  }
+
+  if (!isValidPasswordLength(password, 8)) {
+    throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
+  }
+
   const result = await register({ nombre, email, password, codigo_activacion, hora_recordatorio, minuto_recordatorio });
 
   res.status(201).json(result);
@@ -38,6 +47,10 @@ exports.login = tryCatch(async (req, res) => {
     throw new AppError(400, 'Email y contraseña requeridos');
   }
 
+  if (!isValidEmail(email)) {
+    throw new AppError(400, 'Email inválido');
+  }
+
   const result = await login({ email, password });
 
   res.json(result);
@@ -47,8 +60,8 @@ exports.profile = tryCatch(async (req, res) => {
   const usuario = await Usuario.findById(req.usuario.id)
     .populate('tienda_id')
     .populate('producto_id')
-    .populate('tiendas_administradas', 'nombre_tienda ciudad')
-    .select('nombre email rol fecha_registro tienda_id producto_id tiendas_administradas');
+    .populate('grupo_id', 'nombre')
+    .select('nombre email rol fecha_registro tienda_id producto_id grupo_id hora_recordatorio_utc minuto_recordatorio_utc');
 
   if (!usuario) {
     throw new AppError(404, 'Usuario no encontrado');
@@ -60,6 +73,7 @@ exports.profile = tryCatch(async (req, res) => {
     email: usuario.email,
     rol: usuario.rol,
     fecha_registro: usuario.fecha_registro,
+    ...getReminderSchedulePY(usuario),
     tienda: usuario.tienda_id ? {
       id: usuario.tienda_id._id,
       nombre_tienda: usuario.tienda_id.nombre_tienda,
@@ -70,7 +84,7 @@ exports.profile = tryCatch(async (req, res) => {
       nombre: usuario.producto_id.nombre,
       descripcion: usuario.producto_id.descripcion
     } : null,
-    tiendas_administradas: usuario.tiendas_administradas
+    grupo: usuario.grupo_id ? { id: usuario.grupo_id._id, nombre: usuario.grupo_id.nombre } : null
   });
 });
 
@@ -99,6 +113,10 @@ exports.forgotPassword = tryCatch(async (req, res) => {
     throw new AppError(400, 'Email requerido');
   }
 
+  if (!isValidEmail(email)) {
+    throw new AppError(400, 'Email inválido');
+  }
+
   await forgotPassword(email);
 
   res.json({ mensaje: 'Si el email está registrado, recibirás un enlace de recuperación' });
@@ -122,6 +140,10 @@ exports.resetPassword = tryCatch(async (req, res) => {
     throw new AppError(400, 'Token y nueva contraseña requeridos');
   }
 
+  if (!isValidPasswordLength(nueva_password, 8)) {
+    throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
+  }
+
   const result = await resetPassword(token, nueva_password);
   res.json(result);
 });
@@ -133,6 +155,21 @@ exports.changePassword = tryCatch(async (req, res) => {
     throw new AppError(400, 'Contraseña actual y nueva contraseña requeridas');
   }
 
+  if (!isValidPasswordLength(nueva_password, 8)) {
+    throw new AppError(400, 'La contraseña debe tener al menos 8 caracteres');
+  }
+
   const result = await changePassword(req.usuario.id, current_password, nueva_password);
+  res.json(result);
+});
+
+exports.updateReminderSchedule = tryCatch(async (req, res) => {
+  const { hora_recordatorio, minuto_recordatorio } = req.body;
+
+  if (hora_recordatorio === undefined || minuto_recordatorio === undefined) {
+    throw new AppError(400, 'La hora y el minuto de recordatorio son requeridos');
+  }
+
+  const result = await updateReminderSchedule(req.usuario.id, hora_recordatorio, minuto_recordatorio);
   res.json(result);
 });

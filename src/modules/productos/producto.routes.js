@@ -2,10 +2,11 @@ const { Router } = require('express');
 const authMiddleware = require('../../middlewares/authMiddleware');
 const adminMiddleware = require('../../middlewares/adminMiddleware');
 const scopeTiendaMiddleware = require('../../middlewares/scopeTiendaMiddleware');
+const scopeGrupoMiddleware = require('../../middlewares/scopeGrupoMiddleware');
 const productoCtrl = require('./producto.controller');
 
 const router = Router();
-router.use(authMiddleware, adminMiddleware, scopeTiendaMiddleware);
+router.use(authMiddleware, adminMiddleware, scopeTiendaMiddleware, scopeGrupoMiddleware);
 
 /**
  * @swagger
@@ -31,14 +32,12 @@ router.use(authMiddleware, adminMiddleware, scopeTiendaMiddleware);
  *                     type: string
  *                   descripcion:
  *                     type: string
- *                   tienda_id:
+ *                   grupo_id:
  *                     type: object
  *                     properties:
  *                       _id:
  *                         type: string
- *                       nombre_tienda:
- *                         type: string
- *                       ciudad:
+ *                       nombre:
  *                         type: string
  */
 router.get('/', productoCtrl.listar);
@@ -64,16 +63,16 @@ router.get('/', productoCtrl.listar);
  *                 type: string
  *               descripcion:
  *                 type: string
- *               tienda_id:
+ *               grupo_id:
  *                 type: string
- *                 description: ID de la tienda a asociar
+ *                 description: Solo admin_general puede elegirlo; roles con grupo crean siempre en el propio
  *     responses:
  *       201:
  *         description: Producto creado
  *       400:
- *         description: Falta nombre
+ *         description: Falta nombre o grupo_id inválido
  *       403:
- *         description: Intento de asignar tienda fuera de scope
+ *         description: Sin grupo asignado
  */
 router.post('/', productoCtrl.crear);
 
@@ -102,13 +101,16 @@ router.post('/', productoCtrl.crear);
  *                 type: string
  *               descripcion:
  *                 type: string
- *               tienda_id:
+ *               grupo_id:
  *                 type: string
+ *                 description: Solo admin_general puede cambiar el grupo
  *     responses:
  *       200:
  *         description: Producto actualizado
+ *       400:
+ *         description: El grupo indicado no existe
  *       403:
- *         description: Fuera de scope o intento de asignar tienda fuera de scope
+ *         description: Producto fuera de tu grupo, o rol sin permisos para cambiar grupo
  *       404:
  *         description: Producto no encontrado
  */

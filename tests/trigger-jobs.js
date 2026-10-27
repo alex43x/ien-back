@@ -8,6 +8,7 @@ const CRON_API_KEY = process.env.CRON_API_KEY;
 const TEST_EMAIL = 'tadeofrr13@gmail.com';
 
 const Tienda = mongoose.model('Tienda');
+const Grupo = mongoose.model('Grupo');
 const Producto = mongoose.model('Producto');
 const Codigo = mongoose.model('Codigo');
 const Usuario = mongoose.model('Usuario');
@@ -44,9 +45,10 @@ async function run() {
   await Usuario.deleteMany({ email: { $regex: '^tadeofrr13\\+' } });
   console.log('Cleaned existing test users');
 
-  // Crear tienda, producto, código
-  const tienda = await Tienda.create({ nombre_tienda: 'Tienda Jobs Test', ciudad: 'Ciudad Test' });
-  const producto = await Producto.create({ nombre: 'Producto Jobs Test', tienda_id: tienda._id });
+  // Crear grupo, tienda, producto, código
+  const grupo = await Grupo.create({ nombre: 'Grupo Jobs Test' });
+  const tienda = await Tienda.create({ nombre_tienda: 'Tienda Jobs Test', ciudad: 'Ciudad Test', grupo_id: grupo._id });
+  const producto = await Producto.create({ nombre: 'Producto Jobs Test', grupo_id: grupo._id });
   const codigo = await Codigo.create({
     codigo: `JOBS-${Date.now()}`,
     producto_id: producto._id,

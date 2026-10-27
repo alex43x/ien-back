@@ -167,7 +167,7 @@ describe('Plan - testing endpoints', () => {
 
   beforeEach(async () => {
     data = await seed();
-    token = generateToken(data.usuario);
+    token = generateToken(data.adminGeneral);
   });
 
   test('POST /api/plan/testing/autocomplete-test - success', async () => {

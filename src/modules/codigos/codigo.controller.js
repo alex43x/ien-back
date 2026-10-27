@@ -1,5 +1,6 @@
 const Codigo = require('../../models/Codigo');
 const Producto = require('../../models/Producto');
+const Tienda = require('../../models/Tienda');
 const AppError = require('../../utils/AppError');
 const { tryCatch } = require('../../middlewares/errorHandler');
 const { toResponse } = require('../../utils/toResponse');
@@ -33,13 +34,25 @@ exports.crear = tryCatch(async (req, res) => {
     if (!enScope(tienda_id, req.tiendasPermitidas)) throw new AppError(403, 'No puedes crear códigos para esa tienda');
   }
 
-  const producto = await Producto.findById(producto_id).select('tienda_id').lean();
+  const producto = await Producto.findById(producto_id).select('grupo_id').lean();
   if (!producto) throw new AppError(400, 'Producto no encontrado');
-  if (producto.tienda_id.toString() !== tienda_id) {
-    throw new AppError(400, 'El producto no pertenece a la tienda indicada');
+
+  const tiendaDoc = await Tienda.findById(tienda_id).select('grupo_id').lean();
+  if (!tiendaDoc) throw new AppError(400, 'La tienda indicada no existe');
+
+  if (producto.grupo_id.toString() !== tiendaDoc.grupo_id.toString()) {
+    throw new AppError(400, 'El producto no pertenece al grupo de la tienda indicada');
   }
 
-  const doc = await Codigo.create({ codigo, producto_id, tienda_id, activo: true });
+  let doc;
+  try {
+    doc = await Codigo.create({ codigo, producto_id, tienda_id, activo: true });
+  } catch (err) {
+    if (err.code === 11000) {
+      throw new AppError(409, 'El código ya existe');
+    }
+    throw err;
+  }
   res.status(201).json(toResponse(doc));
 });
 

@@ -1,4 +1,4 @@
-const { C, wrap, header, brandFooter, card, spacer, label, title, body, signoff } = require('./base');
+const { C, escapeHtml, wrap, header, brandFooter, card, spacer, label, title, body, signoff } = require('./base');
 
 const HITOS = {
   7: {
@@ -34,7 +34,7 @@ function hito(nombre, dia, tienda) {
     card(
       label(h.competencia + ' · Día ' + dia, h.accent) +
       title(h.titulo) +
-      body('Hola, <strong>' + nombre + '</strong>,') +
+      body('Hola, <strong>' + escapeHtml(nombre) + '</strong>,') +
       body(h.cuerpo) +
       signoff(tienda || null),
       h.accent
@@ -42,7 +42,7 @@ function hito(nombre, dia, tienda) {
     spacer() +
     brandFooter()
   );
-  return { asunto: nombre + ', ' + dia + ' días — ¡semana completada!', html };
+  return { asunto: escapeHtml(nombre) + ', ' + dia + ' días — ¡semana completada!', html };
 }
 
 module.exports = { hito };

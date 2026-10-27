@@ -9,6 +9,7 @@ const planRoutes = require('./modules/plan/plan.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const jobRoutes = require('./modules/jobs/job.routes');
 const sucursalRoutes = require('./modules/tiendas/tienda.routes');
+const grupoRoutes = require('./modules/grupos/grupo.routes');
 const productoRoutes = require('./modules/productos/producto.routes');
 const codigoRoutes = require('./modules/codigos/codigo.routes');
 
@@ -17,7 +18,22 @@ const { getSwaggerSpec } = require('./config/swagger');
 const { errorHandler } = require('./middlewares/errorHandler');
 
 const app = express();
-app.set('trust proxy', 1);
+
+// Cadena de proxies: Cliente -> Cloudflare -> ingress Northflank -> Nginx (ien-front) -> ingress -> backend.
+// Confiamos en rangos privados (hops internos) y en Cloudflare, para que req.ip sea la IP real del cliente.
+// Ref: https://www.cloudflare.com/ips
+const TRUSTED_PROXIES = [
+  'loopback',
+  'linklocal',
+  'uniquelocal',
+  '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+  '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+  '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+  '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+  '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+  '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+];
+app.set('trust proxy', TRUSTED_PROXIES);
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.use(cors({
@@ -44,7 +60,12 @@ const swaggerAuth = (req, res, next) => {
   const user = process.env.SWAGGER_USER;
   const pass = process.env.SWAGGER_PASS;
 
-  if (!user || !pass) return next();
+  if (!user || !pass) {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ error: 'Ruta no encontrada' });
+    }
+    return next();
+  }
 
   const auth = (req.headers.authorization || '');
   if (!auth.startsWith('Basic ')) {
@@ -70,6 +91,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/plan', planRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/admin/sucursales', sucursalRoutes);
+app.use('/api/admin/grupos', grupoRoutes);
 app.use('/api/admin/productos', productoRoutes);
 app.use('/api/admin/codigos', codigoRoutes);
 app.use('/api/admin', adminRoutes);

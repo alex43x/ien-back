@@ -1,4 +1,5 @@
 const Tienda = require('../../models/Tienda');
+const Grupo = require('../../models/Grupo');
 const AppError = require('../../utils/AppError');
 const { tryCatch } = require('../../middlewares/errorHandler');
 const { toResponse } = require('../../utils/toResponse');
@@ -17,7 +18,10 @@ exports.listar = tryCatch(async (req, res) => {
   if (!incluirInactivas) {
     filtro.activo = true;
   }
-  const tiendas = await Tienda.find(filtro).select('nombre_tienda ciudad activo').lean();
+  const tiendas = await Tienda.find(filtro)
+    .select('nombre_tienda ciudad activo grupo_id')
+    .populate('grupo_id', 'nombre')
+    .lean();
   res.json(tiendas.map(toResponse));
 });
 
@@ -28,11 +32,15 @@ exports.crear = tryCatch(async (req, res) => {
   if (req.usuario.rol !== 'admin_general') {
     throw new AppError(403, 'Solo admin_general puede crear sucursales');
   }
-  const { nombre_tienda, ciudad } = req.body;
-  if (!nombre_tienda || !ciudad) {
-    throw new AppError(400, 'nombre_tienda y ciudad son requeridos');
+  const { nombre_tienda, ciudad, grupo_id } = req.body;
+  if (!nombre_tienda || !ciudad || !grupo_id) {
+    throw new AppError(400, 'nombre_tienda, ciudad y grupo_id son requeridos');
   }
-  const tienda = await Tienda.create({ nombre_tienda, ciudad });
+  const grupoExiste = await Grupo.findById(grupo_id).select('_id').lean();
+  if (!grupoExiste) {
+    throw new AppError(400, 'El grupo indicado no existe');
+  }
+  const tienda = await Tienda.create({ nombre_tienda, ciudad, grupo_id });
   res.status(201).json(toResponse(tienda));
 });
 
@@ -51,6 +59,20 @@ exports.actualizar = tryCatch(async (req, res) => {
     nombre_tienda: req.body.nombre_tienda,
     ciudad: req.body.ciudad
   };
+
+  if (req.body.grupo_id !== undefined) {
+    // SEG-03: solo admin_general puede mover una sucursal de grupo. El scope
+    // de tenants deriva de Tienda.grupo_id, así que permitirlo a admin_negocio
+    // entrega el catálogo (productos/códigos) de otro negocio a sus moderadores.
+    if (req.usuario.rol !== 'admin_general') {
+      throw new AppError(403, 'Solo admin_general puede cambiar el grupo de una sucursal');
+    }
+    const grupoExiste = await Grupo.findById(req.body.grupo_id).select('_id').lean();
+    if (!grupoExiste) {
+      throw new AppError(400, 'El grupo indicado no existe');
+    }
+    campos.grupo_id = req.body.grupo_id;
+  }
 
   const tienda = await Tienda.findByIdAndUpdate(id, campos, { new: true, runValidators: true });
   if (!tienda) throw new AppError(404, 'Sucursal no encontrada');
