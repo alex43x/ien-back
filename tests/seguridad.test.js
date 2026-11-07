@@ -226,3 +226,50 @@ describe('SEG-04 refresh concurrente solo concede una sesión', () => {
     expect(fallos.length).toBe(7);
   }, 30000);
 });
+
+describe('AUD-12 cambiar la contraseña invalida los links de recuperación pendientes', () => {
+  const crypto = require('crypto');
+  let data;
+  beforeEach(async () => {
+    data = await seed();
+  });
+
+  async function crearTokenReset(plano) {
+    const PasswordResetToken = mongoose.model('PasswordResetToken');
+    await PasswordResetToken.create({
+      usuario_id: data.usuario._id,
+      token_hash: crypto.createHash('sha256').update(plano).digest('hex'),
+      fecha_expiracion: new Date(Date.now() + 15 * 60 * 1000)
+    });
+  }
+
+  test('al usar un link de reset, el otro link pendiente deja de funcionar', async () => {
+    await crearTokenReset('link-a-prueba');
+    await crearTokenReset('link-b-prueba');
+
+    const r1 = await request(app).post('/api/auth/reset-password')
+      .send({ token: 'link-a-prueba', nueva_password: 'nuevaClave123' });
+    expect(r1.status).toBe(200);
+
+    const verif = await request(app).get('/api/auth/verify-reset-token').query({ token: 'link-b-prueba' });
+    expect(verif.body.valido).toBe(false);
+    const r2 = await request(app).post('/api/auth/reset-password')
+      .send({ token: 'link-b-prueba', nueva_password: 'otraClave123' });
+    expect(r2.status).toBe(400);
+  });
+
+  test('change-password también invalida links de reset pendientes', async () => {
+    await crearTokenReset('link-c-prueba');
+    const Usuario = mongoose.model('Usuario');
+    await Usuario.updateOne({ _id: data.usuario._id }, { $set: { password_hash: await bcrypt.hash('actual1234', 4) } });
+
+    const cambio = await request(app).post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${generateToken(data.usuario)}`)
+      .send({ current_password: 'actual1234', nueva_password: 'nuevaClave123' });
+    expect(cambio.status).toBe(200);
+
+    const r = await request(app).post('/api/auth/reset-password')
+      .send({ token: 'link-c-prueba', nueva_password: 'otraClave123' });
+    expect(r.status).toBe(400);
+  });
+});

@@ -358,6 +358,11 @@ exports.resetPassword = async (token, nuevaPassword) => {
     { usuario_id: usuario._id, revocado: false },
     { revocado: true }
   );
+  // AUD-12: los demás links de recuperación pendientes dejan de servir.
+  await PasswordResetToken.updateMany(
+    { usuario_id: usuario._id, usado: false },
+    { usado: true }
+  );
 
   return { mensaje: 'Contraseña actualizada' };
 };
@@ -387,6 +392,11 @@ exports.changePassword = async (userId, currentPassword, nuevaPassword) => {
   await RefreshToken.updateMany(
     { usuario_id: usuario._id, revocado: false },
     { revocado: true }
+  );
+  // AUD-12: si había un link de recuperación pendiente, deja de servir.
+  await PasswordResetToken.updateMany(
+    { usuario_id: usuario._id, usado: false },
+    { usado: true }
   );
 
   return { mensaje: 'Contraseña actualizada. Todas las sesiones anteriores fueron cerradas.' };
