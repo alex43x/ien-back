@@ -170,6 +170,23 @@ describe('Plan - testing endpoints', () => {
     token = generateToken(data.adminGeneral);
   });
 
+  test.each(['advance', 'retreat'])('testing/%s rejects ordinary users without changing their plan', async (action) => {
+    const userToken = generateToken(data.usuario);
+    await request(app)
+      .post('/api/plan/setup-test')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ respuestas: Array.from({ length: data.totalPreguntas }, (_, i) => ({ numero: i + 1, score: 3 })) });
+    const Plan = mongoose.model('PlanProgreso');
+    const before = await Plan.findOne({ usuario_id: data.usuario._id }).lean();
+    expect(before).not.toBeNull();
+    const res = await request(app)
+      .post(`/api/plan/testing/${action}`)
+      .set('Authorization', `Bearer ${userToken}`);
+    expect(res.status).toBe(403);
+    const after = await Plan.findById(before._id).lean();
+    expect(after).toEqual(before);
+  });
+
   test('POST /api/plan/testing/autocomplete-test - success', async () => {
     const res = await request(app)
       .post('/api/plan/testing/autocomplete-test')

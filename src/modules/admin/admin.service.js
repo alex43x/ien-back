@@ -234,9 +234,16 @@ exports.getGraficaSemanal = async (tiendasPermitidas) => {
 
 // ─── Listar Pacientes ─────────────────────────────────────────────────────────
 
-exports.listarPacientes = async (pagina, limite, tiendasPermitidas) => {
+exports.listarPacientes = async (pagina, limite, tiendasPermitidas, busqueda = '') => {
   const skip = (pagina - 1) * limite;
   const filtro = { ...(await filtroTiendas(tiendasPermitidas)), rol: 'usuario' };
+  if (busqueda) {
+    const literal = busqueda.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filtro.$or = [
+      { nombre: { $regex: literal, $options: 'i' } },
+      { email: { $regex: literal, $options: 'i' } }
+    ];
+  }
 
   const [usuarios, total] = await Promise.all([
     Usuario.find(filtro)

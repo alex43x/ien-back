@@ -75,7 +75,8 @@ exports.crearModeradorTienda = tryCatch(async (req, res) => {
 exports.listarPacientes = tryCatch(async (req, res) => {
   const pagina = Math.max(parseInt(req.query.page) || 1, 1);
   const limite = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
-  const data = await listarPacientes(pagina, limite, req.tiendasPermitidas);
+  const busqueda = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : '';
+  const data = await listarPacientes(pagina, limite, req.tiendasPermitidas, busqueda);
   res.json(data);
 });
 

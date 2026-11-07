@@ -44,6 +44,39 @@ describe('Pacientes - admin_general', () => {
     expect(res.body.pagina).toBe(1);
   });
 
+  test('busca por nombre antes de paginar y cuenta solo los resultados filtrados', async () => {
+    await createUsuario({ nombre: 'Objetivo Norte', email: `norte-${data.uid}@test.com`, tienda_id: data.tiendas[0]._id });
+    await createUsuario({ nombre: 'Objetivo Sur', email: `sur-${data.uid}@test.com`, tienda_id: data.tiendas[0]._id });
+    const res = await request(app).get('/api/admin/pacientes')
+      .query({ search: 'OBJETIVO', page: 2, limit: 1 })
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(2);
+    expect(res.body.pacientes).toHaveLength(1);
+    expect(res.body.pacientes[0].nombre).toMatch(/Objetivo/);
+    expect(res.body.pagina).toBe(2);
+  });
+
+  test('la búsqueda trata caracteres de expresiones regulares como texto literal', async () => {
+    await mongoose.model('Usuario').findByIdAndUpdate(usuario._id, { nombre: 'Ana (Norte)' });
+    const res = await request(app).get('/api/admin/pacientes')
+      .query({ search: '(norte)' }).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.pacientes[0].nombre).toBe('Ana (Norte)');
+    const literal = await request(app).get('/api/admin/pacientes')
+      .query({ search: '.*' }).set('Authorization', `Bearer ${token}`);
+    expect(literal.body.total).toBe(0);
+  });
+
+  test('busca por correo electrónico sin distinguir mayúsculas', async () => {
+    const res = await request(app).get('/api/admin/pacientes')
+      .query({ search: usuario.email.toUpperCase() }).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.pacientes[0].email).toBe(usuario.email);
+  });
+
   test('GET /api/admin/pacientes/:usuarioId/perfil - patient profile', async () => {
     const res = await request(app)
       .get(`/api/admin/pacientes/${usuario._id}/perfil`)
@@ -172,6 +205,14 @@ describe('Pacientes - IDOR: admin de tienda A no lee paciente de tienda B', () =
   });
 
   const endpoints = ['perfil', 'progreso', 'actividades', 'test-inicial'];
+
+  test('la búsqueda conserva el alcance de tiendas del administrador', async () => {
+    const res = await request(app).get('/api/admin/pacientes')
+      .query({ search: pacienteB.email }).set('Authorization', `Bearer ${tokenA}`);
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(0);
+    expect(res.body.pacientes).toEqual([]);
+  });
 
   test.each(endpoints)('GET /api/admin/pacientes/:id/%s - 404 sin datos ajenos', async (recurso) => {
     const res = await request(app)
