@@ -143,23 +143,46 @@ describe('SEG-06 forgot-password con tope por destinatario', () => {
     expect(count).toBe(1);
   });
 
-  test('tope diario de 5 tokens por cuenta', async () => {
-    const PasswordResetToken = mongoose.model('PasswordResetToken');
-    const crypto = require('crypto');
+  // AUD-02: el tope diario se cuenta sobre HistorialCorreo, porque el índice TTL
+  // de password_reset_tokens borra cada token ~45 min después de creado.
+  async function insertarEnviosPrevios(cantidad, minutosAtras) {
+    const HistorialCorreo = mongoose.model('HistorialCorreo');
     const ahora = Date.now();
-    // 5 tokens previos fuera del cooldown (10+ min) pero dentro de 24h
-    const docs = Array.from({ length: 5 }, (_, i) => ({
+    await HistorialCorreo.insertMany(Array.from({ length: cantidad }, (_, i) => ({
       usuario_id: data.usuario._id,
-      token_hash: crypto.createHash('sha256').update(`viejo-${data.uid}-${i}`).digest('hex'),
-      fecha_creacion: new Date(ahora - (10 + i) * 60 * 1000),
-      fecha_expiracion: new Date(ahora + 15 * 60 * 1000)
-    }));
-    await PasswordResetToken.insertMany(docs);
+      email_destino: data.usuario.email,
+      tipo_correo: 'recuperacion_contrasena',
+      estado: 'enviado',
+      fecha_envio: new Date(ahora - (minutosAtras + i) * 60 * 1000)
+    })));
+  }
+
+  test('tope diario: con 5 envíos en 24h no crea token aunque el TTL ya borró los tokens viejos', async () => {
+    const PasswordResetToken = mongoose.model('PasswordResetToken');
+    // Escenario real del bug: 5 correos enviados hace 1-2 h; sus tokens ya no existen.
+    await insertarEnviosPrevios(5, 60);
+    expect(await PasswordResetToken.countDocuments({ usuario_id: data.usuario._id })).toBe(0);
 
     const res = await request(app).post('/api/auth/forgot-password').send({ email: data.usuario.email });
     expect(res.status).toBe(200);
-    const count = await PasswordResetToken.countDocuments({ usuario_id: data.usuario._id });
-    expect(count).toBe(5);
+    expect(res.body.mensaje).toBe('Si el email está registrado, recibirás un enlace de recuperación');
+    expect(await PasswordResetToken.countDocuments({ usuario_id: data.usuario._id })).toBe(0);
+  });
+
+  test('tope diario: con 4 envíos en 24h todavía permite uno más', async () => {
+    const PasswordResetToken = mongoose.model('PasswordResetToken');
+    await insertarEnviosPrevios(4, 60);
+    const res = await request(app).post('/api/auth/forgot-password').send({ email: data.usuario.email });
+    expect(res.status).toBe(200);
+    expect(await PasswordResetToken.countDocuments({ usuario_id: data.usuario._id })).toBe(1);
+  });
+
+  test('tope diario: los envíos de hace más de 24h no cuentan', async () => {
+    const PasswordResetToken = mongoose.model('PasswordResetToken');
+    await insertarEnviosPrevios(5, 25 * 60);
+    const res = await request(app).post('/api/auth/forgot-password').send({ email: data.usuario.email });
+    expect(res.status).toBe(200);
+    expect(await PasswordResetToken.countDocuments({ usuario_id: data.usuario._id })).toBe(1);
   });
 });
 

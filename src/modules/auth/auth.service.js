@@ -6,6 +6,7 @@ const Tienda = require('../../models/Tienda');
 const Codigo = require('../../models/Codigo');
 const RefreshToken = require('../../models/RefreshToken');
 const PasswordResetToken = require('../../models/PasswordResetToken');
+const HistorialCorreo = require('../../models/HistorialCorreo');
 const Producto = require('../../models/Producto');
 const AppError = require('../../utils/AppError');
 const { isValidEmail, isValidPasswordLength } = require('../../utils/validators');
@@ -260,15 +261,20 @@ exports.forgotPassword = async (email) => {
     // vive en MongoDB, no en el MemoryStore del rate-limiter por IP). Cooldown
     // de 5 minutos + tope de 5 envíos/24h por cuenta. En exceso se responde el
     // 200 genérico del controller sin crear token ni enviar correo.
+    // AUD-02: el tope diario se cuenta en HistorialCorreo (TTL de 60 días) y no
+    // en PasswordResetToken, cuyo índice TTL borra cada token ~45 min después
+    // de creado; contarlo ahí dejaba pasar ~5 correos cada 45 min.
+    // El cooldown sí puede usar PasswordResetToken (5 min < 45 min de vida).
     const ahora = new Date();
     const [reciente, enviadosUltimas24h] = await Promise.all([
       PasswordResetToken.findOne({
         usuario_id: usuario._id,
         fecha_creacion: { $gte: new Date(ahora.getTime() - 5 * 60 * 1000) }
       }).select('_id').lean(),
-      PasswordResetToken.countDocuments({
+      HistorialCorreo.countDocuments({
         usuario_id: usuario._id,
-        fecha_creacion: { $gte: new Date(ahora.getTime() - 24 * 60 * 60 * 1000) }
+        tipo_correo: 'recuperacion_contrasena',
+        fecha_envio: { $gte: new Date(ahora.getTime() - 24 * 60 * 60 * 1000) }
       })
     ]);
     if (reciente || enviadosUltimas24h >= 5) {
