@@ -195,6 +195,27 @@ describe('Plan - testing endpoints', () => {
     expect(res.body.plan_id).toBeDefined();
   });
 
+  test('autocomplete-test acepta ?debiles repetido (AUD-08, antes 500)', async () => {
+    const res = await request(app)
+      .post('/api/plan/testing/autocomplete-test?debiles=empatia&debiles=autocontrol')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(201);
+    expect(res.body.competencias_a_mejorar).toEqual(expect.arrayContaining(['Empatía', 'Autocontrol']));
+  });
+
+  test('autocomplete-test sigue aceptando ?debiles separado por comas y valida nombres', async () => {
+    const ok = await request(app)
+      .post('/api/plan/testing/autocomplete-test?debiles=empatia,autocontrol')
+      .set('Authorization', `Bearer ${token}`);
+    expect(ok.status).toBe(201);
+    await mongoose.model('PlanProgreso').deleteMany({});
+    const mal = await request(app)
+      .post('/api/plan/testing/autocomplete-test?debiles=empatia&debiles=inventada')
+      .set('Authorization', `Bearer ${token}`);
+    expect(mal.status).toBe(400);
+    expect(mal.body.error).toMatch(/inventada/);
+  });
+
   test('POST /api/plan/testing/advance - success', async () => {
     const respuestas = Array.from({ length: data.totalPreguntas }, (_, i) => ({
       numero: i + 1, score: 3

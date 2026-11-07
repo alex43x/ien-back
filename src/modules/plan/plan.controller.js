@@ -71,9 +71,15 @@ exports.getBienvenida = tryCatch(async (req, res) => {
 });
 
 exports.autocompleteTest = tryCatch(async (req, res) => {
-  const debiles = req.query.debiles
-    ? req.query.debiles.split(',').map(s => s.trim()).filter(Boolean)
-    : [];
+  // AUD-08: ?debiles puede llegar como string ("a,b") o como array
+  // (?debiles=a&debiles=b); antes el array rompía con 500 en .split().
+  const crudo = req.query.debiles;
+  const valores = Array.isArray(crudo) ? crudo : (crudo !== undefined ? [crudo] : []);
+  const debiles = valores
+    .filter(v => typeof v === 'string')
+    .flatMap(v => v.split(','))
+    .map(s => s.trim())
+    .filter(Boolean);
   const plan = await autocompleteTest(req.usuario.id, debiles);
   res.status(201).json({
     plan_id: plan._id,
