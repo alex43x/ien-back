@@ -464,3 +464,18 @@ describe('run-daily - abandono antes que reinicio (AUD-04)', () => {
     }
   });
 });
+
+describe('findUsuariosSinActivar - solo pacientes (AUD-06)', () => {
+  test('no incluye admins ni moderadores aunque no tengan plan', async () => {
+    const data = await seed();
+    const viejo = new Date(Date.now() - 10 * 86400000);
+    await Usuario.updateMany({}, { $set: { fecha_registro: viejo } });
+    const { findUsuariosSinActivar } = require('../src/modules/jobs/cronJobs');
+    const resultado = await findUsuariosSinActivar();
+    const ids = resultado.map(u => String(u._id));
+    expect(ids).toContain(String(data.usuario._id));
+    expect(ids).not.toContain(String(data.adminGeneral._id));
+    expect(ids).not.toContain(String(data.adminNegocio._id));
+    expect(ids).not.toContain(String(data.moderador._id));
+  });
+});

@@ -84,7 +84,9 @@ async function demoledorDeRachas() {
 async function findUsuariosSinActivar() {
   const hace5Dias = getFechaHaceDias(5);
   return Usuario.aggregate([
-    { $match: { fecha_registro: { $lte: hace5Dias } } },
+    // AUD-06: solo pacientes. Admins y moderadores nunca tienen plan y antes
+    // recibían el correo de "activá tu programa".
+    { $match: { rol: 'usuario', fecha_registro: { $lte: hace5Dias } } },
     { $lookup: { from: 'planes_progreso', localField: '_id', foreignField: 'usuario_id', as: 'plan' } },
     { $match: { plan: { $size: 0 } } },
     { $project: { nombre: 1, email: 1, producto_id: 1, fecha_registro: 1 } }
