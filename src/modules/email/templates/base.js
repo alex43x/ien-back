@@ -1,3 +1,17 @@
+// Escape seguro de HTML para datos que vienen del usuario o de la DB.
+// Solo se aplica a valores dinamicos interpolados dentro de las etiquetas
+// propias del template. NO se aplica a URLs (resetUrl/baseUrl): son generadas
+// server-side y escapeHtml romperia el link al convertir & en &amp;.
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const C = {
   gold: "#F0BC48",
   teal: "#6DBFAA",
@@ -104,7 +118,7 @@ function signoff(tienda) {
   return `
   <p style="margin:0;font-family:${FONT.inter};font-size:15px;color:${C.text};line-height:1.7;">
     Con cariño,<br/>
-    <span style="font-weight:500;">Equipo IEN${tienda ? ' \u00B7 ' + tienda : ''}</span>
+    <span style="font-weight:500;">${tienda ? escapeHtml(tienda) + ' \u00B7 ' : ''}Equipo de Iridium</span>
   </p>`;
 }
 
@@ -132,4 +146,4 @@ function brandFooter() {
   </tr>`;
 }
 
-module.exports = { C, FONT, wrap, header, footer, brandFooter, card, spacer, btn, label, title, body, signoff };
+module.exports = { C, FONT, escapeHtml, wrap, header, footer, brandFooter, card, spacer, btn, label, title, body, signoff };

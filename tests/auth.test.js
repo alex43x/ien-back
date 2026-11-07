@@ -105,6 +105,32 @@ describe('Auth - register', () => {
       });
     expect(res.status).toBe(404);
   });
+
+  test('POST /api/auth/register - invalid email format', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        nombre: 'User',
+        email: 'asdf',
+        password: 'pass1234',
+        codigo_activacion: data.codigo1
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Email inválido');
+  });
+
+  test('POST /api/auth/register - short password', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        nombre: 'User',
+        email: 'valid@test.com',
+        password: 'a',
+        codigo_activacion: data.codigo1
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('La contraseña debe tener al menos 8 caracteres');
+  });
 });
 
 describe('Auth - login', () => {
@@ -125,6 +151,7 @@ describe('Auth - login', () => {
       .post('/api/auth/login')
       .send({ email: data.adminGeneral.email, password: 'wrong' });
     expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Credenciales inválidas');
   });
 
   test('POST /api/auth/login - non-existent user', async () => {
@@ -132,6 +159,18 @@ describe('Auth - login', () => {
       .post('/api/auth/login')
       .send({ email: 'noexiste@test.com', password: 'pass' });
     expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Credenciales inválidas');
+  });
+
+  test('POST /api/auth/login - same error for missing user and wrong password', async () => {
+    const wrongPassword = await request(app)
+      .post('/api/auth/login')
+      .send({ email: data.adminGeneral.email, password: 'wrong' });
+    const missingUser = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'noexiste@test.com', password: 'pass' });
+    expect(wrongPassword.status).toBe(missingUser.status);
+    expect(wrongPassword.body.error).toBe(missingUser.body.error);
   });
 
   test('POST /api/auth/login - missing fields', async () => {
@@ -378,4 +417,106 @@ describe('Auth - change-password', () => {
           .send({ current_password: 'user123' });
         expect(res.status).toBe(400);
     });
+});
+
+describe('Auth - horario de recordatorio', () => {
+  let data, token;
+
+  beforeEach(async () => {
+    data = await seed();
+    token = generateToken(data.usuario);
+  });
+
+  test('register guarda la hora en UTC (+3) y el minuto', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        nombre: 'Con Horario',
+        email: 'con-horario@test.com',
+        password: 'pass1234',
+        codigo_activacion: data.codigo1,
+        hora_recordatorio: 10,
+        minuto_recordatorio: 30
+      });
+    expect(res.status).toBe(201);
+
+    const Usuario = mongoose.model('Usuario');
+    const usuario = await Usuario.findOne({ email: 'con-horario@test.com' }).lean();
+    expect(usuario.hora_recordatorio_utc).toBe(13);
+    expect(usuario.minuto_recordatorio_utc).toBe(30);
+  });
+
+  test('register rechaza hora fuera de rango', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        nombre: 'Hora Mala',
+        email: 'hora-mala@test.com',
+        password: 'pass1234',
+        codigo_activacion: data.codigo1,
+        hora_recordatorio: 24,
+        minuto_recordatorio: 0
+      });
+    expect(res.status).toBe(400);
+  });
+
+  test('register rechaza minuto inválido', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        nombre: 'Minuto Malo',
+        email: 'minuto-malo@test.com',
+        password: 'pass1234',
+        codigo_activacion: data.codigo1,
+        hora_recordatorio: 10,
+        minuto_recordatorio: 15
+      });
+    expect(res.status).toBe(400);
+  });
+
+  test('GET /api/auth/profile devuelve el horario en hora PY', async () => {
+    const res = await request(app)
+      .get('/api/auth/profile')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.hora_recordatorio).toBe(10);
+    expect(res.body.minuto_recordatorio).toBe(0);
+  });
+
+  test('POST /api/auth/reminder-schedule actualiza el horario', async () => {
+    const res = await request(app)
+      .post('/api/auth/reminder-schedule')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ hora_recordatorio: 21, minuto_recordatorio: 30 });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ hora_recordatorio: 21, minuto_recordatorio: 30 });
+
+    const Usuario = mongoose.model('Usuario');
+    const usuario = await Usuario.findById(data.usuario._id).lean();
+    expect(usuario.hora_recordatorio_utc).toBe(0);
+    expect(usuario.minuto_recordatorio_utc).toBe(30);
+  });
+
+  test('POST /api/auth/reminder-schedule rechaza hora inválida', async () => {
+    const res = await request(app)
+      .post('/api/auth/reminder-schedule')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ hora_recordatorio: -1, minuto_recordatorio: 0 });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/auth/reminder-schedule rechaza campos faltantes', async () => {
+    const res = await request(app)
+      .post('/api/auth/reminder-schedule')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ hora_recordatorio: 10 });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/auth/reminder-schedule requiere autenticación', async () => {
+    const res = await request(app)
+      .post('/api/auth/reminder-schedule')
+      .send({ hora_recordatorio: 10, minuto_recordatorio: 0 });
+    expect(res.status).toBe(401);
+  });
 });

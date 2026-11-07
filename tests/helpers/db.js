@@ -5,17 +5,27 @@ process.env.CRON_API_KEY = process.env.CRON_API_KEY || 'test-api-key';
 const mongoose = require('mongoose');
 require('../../src/models/index');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/ien_test';
+let memoryServer = null;
 
 async function connect() {
   if (mongoose.connection.readyState === 0) {
-    await mongoose.connect(MONGO_URI);
+    let uri = process.env.MONGO_URI;
+    if (!uri) {
+      const { MongoMemoryServer } = require('mongodb-memory-server');
+      memoryServer = await MongoMemoryServer.create();
+      uri = memoryServer.getUri('ien_test');
+    }
+    await mongoose.connect(uri);
   }
 }
 
 async function disconnect() {
   if (mongoose.connection.readyState !== 0) {
     await mongoose.connection.close();
+  }
+  if (memoryServer) {
+    await memoryServer.stop();
+    memoryServer = null;
   }
 }
 

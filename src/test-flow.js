@@ -44,7 +44,7 @@ async function main() {
   res = await request('POST', '/auth/register', {
     nombre: 'Juan Pérez',
     email,
-    password: '123456',
+    password: 'password123',
     codigo_activacion: 'IEN-001'
   });
   console.log(res.status, JSON.stringify(res.data, null, 2));

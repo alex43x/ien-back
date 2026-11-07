@@ -37,9 +37,10 @@ describe('Sucursales - admin_general', () => {
     const res = await request(app)
       .post('/api/admin/sucursales')
       .set('Authorization', `Bearer ${token}`)
-      .send({ nombre_tienda: 'Nueva Sucursal', ciudad: 'Cali' });
+      .send({ nombre_tienda: 'Nueva Sucursal', ciudad: 'Cali', grupo_id: data.grupo1Id });
     expect(res.status).toBe(201);
     expect(res.body.nombre_tienda).toBe('Nueva Sucursal');
+    expect(res.body.grupo_id).toBe(data.grupo1Id);
   });
 
   test('POST /api/admin/sucursales - missing fields', async () => {
@@ -50,6 +51,23 @@ describe('Sucursales - admin_general', () => {
     expect(res.status).toBe(400);
   });
 
+  test('POST /api/admin/sucursales - sin grupo_id devuelve 400', async () => {
+    const res = await request(app)
+      .post('/api/admin/sucursales')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ nombre_tienda: 'X', ciudad: 'Y' });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/admin/sucursales - grupo inexistente devuelve 400', async () => {
+    const mongoose = require('mongoose');
+    const res = await request(app)
+      .post('/api/admin/sucursales')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ nombre_tienda: 'X', ciudad: 'Y', grupo_id: new mongoose.Types.ObjectId().toString() });
+    expect(res.status).toBe(400);
+  });
+
   test('PUT /api/admin/sucursales/:id - update', async () => {
     const res = await request(app)
       .put(`/api/admin/sucursales/${data.tienda1Id}`)
@@ -57,6 +75,24 @@ describe('Sucursales - admin_general', () => {
       .send({ ciudad: 'Barranquilla' });
     expect(res.status).toBe(200);
     expect(res.body.ciudad).toBe('Barranquilla');
+  });
+
+  test('PUT /api/admin/sucursales/:id - reasignar grupo', async () => {
+    const res = await request(app)
+      .put(`/api/admin/sucursales/${data.tienda1Id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ grupo_id: data.grupo2Id });
+    expect(res.status).toBe(200);
+    expect(res.body.grupo_id).toBe(data.grupo2Id);
+  });
+
+  test('PUT /api/admin/sucursales/:id - grupo inexistente devuelve 400', async () => {
+    const mongoose = require('mongoose');
+    const res = await request(app)
+      .put(`/api/admin/sucursales/${data.tienda1Id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ grupo_id: new mongoose.Types.ObjectId().toString() });
+    expect(res.status).toBe(400);
   });
 
   test('DELETE /api/admin/sucursales/:id - delete', async () => {

@@ -1,6 +1,7 @@
 const { Router } = require('express');
-const rateLimit = require('express-rate-limit');
-const { validateCode, register, login, refresh, logout, profile, forgotPassword, verifyResetToken, resetPassword, changePassword } = require('./auth.controller');
+const crypto = require('crypto');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const { validateCode, register, login, refresh, logout, profile, forgotPassword, verifyResetToken, resetPassword, changePassword, updateReminderSchedule } = require('./auth.controller');
 const authMiddleware = require('../../middlewares/authMiddleware');
 
 const router = Router();
@@ -9,35 +10,71 @@ const noop = (_req, _res, next) => next();
 const isTest = process.env.NODE_ENV === 'test';
 
 const authLimiter = isTest ? noop : rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
+  windowMs: 5 * 60 * 1000,
+  max: 15,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiados intentos, intentá de nuevo en 15 minutos' }
+  message: { error: 'Demasiados intentos, intentá de nuevo en 5 minutos' }
+});
+
+const loginLimiter = isTest ? noop : rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos, intentá de nuevo en 5 minutos' }
+});
+
+const loginEmailLimiter = isTest ? noop : rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    return email || ipKeyGenerator(req);
+  },
+  message: { error: 'Demasiados intentos, intentá de nuevo en 5 minutos' }
+});
+
+// Se limita por sesión (hash del refresh token) en vez de por IP, para no castigar a
+// usuarios detrás de una IP compartida (NAT). Si no viene refresh_token, cae a la IP.
+const refreshLimiter = isTest ? noop : rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const rt = typeof req.body?.refresh_token === 'string' ? req.body.refresh_token : '';
+    return rt ? crypto.createHash('sha256').update(rt).digest('hex') : ipKeyGenerator(req);
+  },
+  message: { error: 'Demasiados intentos, intentá de nuevo en 5 minutos' }
 });
 
 const resetLimiter = isTest ? noop : rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 5 * 60 * 1000,
   max: 3,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes de recuperación, intentá de nuevo en 15 minutos' }
+  message: { error: 'Demasiadas solicitudes de recuperación, intentá de nuevo en 5 minutos' }
 });
 
 const verifyResetLimiter = isTest ? noop : rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 5 * 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas consultas, intentá de nuevo en 15 minutos' }
+  message: { error: 'Demasiadas consultas, intentá de nuevo en 5 minutos' }
 });
 
 const resetPasswordLimiter = isTest ? noop : rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 5 * 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiados intentos, intentá de nuevo en 15 minutos' }
+  message: { error: 'Demasiados intentos, intentá de nuevo en 5 minutos' }
 });
 
 /**
@@ -104,6 +141,15 @@ router.post('/validate-code', authLimiter, validateCode);
  *                 type: string
  *               codigo_activacion:
  *                 type: string
+ *               hora_recordatorio:
+ *                 type: integer
+ *                 minimum: 0
+ *                 maximum: 23
+ *                 description: Hora local (Paraguay) en formato 24h para el recordatorio diario (opcional, default 10)
+ *               minuto_recordatorio:
+ *                 type: integer
+ *                 enum: [0, 30]
+ *                 description: Minuto del recordatorio (opcional, default 0)
  *     responses:
  *       201:
  *         description: Usuario creado
@@ -180,7 +226,7 @@ router.post('/register', authLimiter, register);
  *       400:
  *         description: Faltan campos requeridos
  */
-router.post('/login', authLimiter, login);
+router.post('/login', loginLimiter, loginEmailLimiter, login);
 
 /**
  * @swagger
@@ -215,7 +261,7 @@ router.post('/login', authLimiter, login);
  *       401:
  *         description: Refresh token inválido o expirado
  */
-router.post('/refresh', authLimiter, refresh);
+router.post('/refresh', refreshLimiter, refresh);
 
 /**
  * @swagger
@@ -274,6 +320,12 @@ router.post('/logout', authLimiter, logout);
  *                 fecha_registro:
  *                   type: string
  *                   format: date-time
+ *                 hora_recordatorio:
+ *                   type: integer
+ *                   description: Hora local (Paraguay) del recordatorio diario
+ *                 minuto_recordatorio:
+ *                   type: integer
+ *                   description: Minuto del recordatorio diario (0 o 30)
  *                 tienda:
  *                   type: object
  *                   nullable: true
@@ -294,17 +346,15 @@ router.post('/logout', authLimiter, logout);
  *                       type: string
  *                     descripcion:
  *                       type: string
- *                 tiendas_administradas:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       _id:
- *                         type: string
- *                       nombre_tienda:
- *                         type: string
- *                       ciudad:
- *                         type: string
+ *                 grupo:
+ *                   type: object
+ *                   nullable: true
+ *                   description: Grupo del admin_negocio (null si no aplica)
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     nombre:
+ *                       type: string
  *       401:
  *         description: Token no provisto o inválido
  *       404:
@@ -438,5 +488,48 @@ router.post('/reset-password', resetPasswordLimiter, resetPassword);
  *         description: Contraseña actual incorrecta
  */
 router.post('/change-password', authMiddleware, resetPasswordLimiter, changePassword);
+
+/**
+ * @swagger
+ * /api/auth/reminder-schedule:
+ *   post:
+ *     summary: Actualizar el horario del recordatorio diario (hora local PY)
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [hora_recordatorio, minuto_recordatorio]
+ *             properties:
+ *               hora_recordatorio:
+ *                 type: integer
+ *                 minimum: 0
+ *                 maximum: 23
+ *                 description: Hora local (Paraguay) en formato 24h
+ *               minuto_recordatorio:
+ *                 type: integer
+ *                 enum: [0, 30]
+ *     responses:
+ *       200:
+ *         description: Horario actualizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 hora_recordatorio:
+ *                   type: integer
+ *                 minuto_recordatorio:
+ *                   type: integer
+ *       400:
+ *         description: Hora o minuto inválidos
+ *       401:
+ *         description: Token no provisto o inválido
+ */
+router.post('/reminder-schedule', authMiddleware, authLimiter, updateReminderSchedule);
 
 module.exports = router;

@@ -15,6 +15,7 @@ function getSwaggerSpec(baseUrl) {
       tags: [
         { name: 'Auth', description: 'Autenticación y registro' },
         { name: 'Plan', description: 'Plan del usuario' },
+        { name: 'Admin - Grupos', description: 'Gestión de grupos de tiendas' },
         { name: 'Admin - Tiendas', description: 'Gestión de sucursales' },
         { name: 'Admin - Productos', description: 'Gestión de productos y alcances' },
         { name: 'Admin - Códigos', description: 'Códigos de activación' },

@@ -167,7 +167,24 @@ describe('Plan - testing endpoints', () => {
 
   beforeEach(async () => {
     data = await seed();
-    token = generateToken(data.usuario);
+    token = generateToken(data.adminGeneral);
+  });
+
+  test.each(['advance', 'retreat'])('testing/%s rejects ordinary users without changing their plan', async (action) => {
+    const userToken = generateToken(data.usuario);
+    await request(app)
+      .post('/api/plan/setup-test')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ respuestas: Array.from({ length: data.totalPreguntas }, (_, i) => ({ numero: i + 1, score: 3 })) });
+    const Plan = mongoose.model('PlanProgreso');
+    const before = await Plan.findOne({ usuario_id: data.usuario._id }).lean();
+    expect(before).not.toBeNull();
+    const res = await request(app)
+      .post(`/api/plan/testing/${action}`)
+      .set('Authorization', `Bearer ${userToken}`);
+    expect(res.status).toBe(403);
+    const after = await Plan.findById(before._id).lean();
+    expect(after).toEqual(before);
   });
 
   test('POST /api/plan/testing/autocomplete-test - success', async () => {
@@ -176,6 +193,27 @@ describe('Plan - testing endpoints', () => {
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(201);
     expect(res.body.plan_id).toBeDefined();
+  });
+
+  test('autocomplete-test acepta ?debiles repetido (AUD-08, antes 500)', async () => {
+    const res = await request(app)
+      .post('/api/plan/testing/autocomplete-test?debiles=empatia&debiles=autocontrol')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(201);
+    expect(res.body.competencias_a_mejorar).toEqual(expect.arrayContaining(['Empatía', 'Autocontrol']));
+  });
+
+  test('autocomplete-test sigue aceptando ?debiles separado por comas y valida nombres', async () => {
+    const ok = await request(app)
+      .post('/api/plan/testing/autocomplete-test?debiles=empatia,autocontrol')
+      .set('Authorization', `Bearer ${token}`);
+    expect(ok.status).toBe(201);
+    await mongoose.model('PlanProgreso').deleteMany({});
+    const mal = await request(app)
+      .post('/api/plan/testing/autocomplete-test?debiles=empatia&debiles=inventada')
+      .set('Authorization', `Bearer ${token}`);
+    expect(mal.status).toBe(400);
+    expect(mal.body.error).toMatch(/inventada/);
   });
 
   test('POST /api/plan/testing/advance - success', async () => {

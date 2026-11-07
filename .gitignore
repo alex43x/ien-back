@@ -1,2 +1,5 @@
 node_modules/
 .env
+
+# Skills/config locales de opencode (no versionar)
+.opencode/

@@ -30,12 +30,12 @@ async function createAdmin(overrides = {}) {
   });
 }
 
-async function createAdminNegocio(tiendas = [], overrides = {}) {
+async function createAdminNegocio(grupoId = null, overrides = {}) {
   return createUsuario({
     nombre: 'Admin Negocio',
     email: `admin-neg-${Date.now()}@example.com`,
     rol: 'admin_negocio',
-    tiendas_administradas: tiendas,
+    grupo_id: grupoId,
     ...overrides
   });
 }
