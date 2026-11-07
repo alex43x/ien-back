@@ -35,9 +35,12 @@ exports.restartPlans = tryCatch(async (_req, res) => {
 exports.runDaily = tryCatch(async (_req, res) => {
   // Orden importa: primero abandonar (30d) y luego reiniciar (7d), así un plan
   // que ya lleva 30 días no se reinicia antes de ser abandonado.
-  const [abandon, restart, reset, nudges, recovery] = await Promise.all([
-    abandonarPlanesYNotificar(),
-    reiniciarPlanesYNotificar(),
+  // AUD-04: antes ambos corrían dentro del mismo Promise.all, sin orden real:
+  // a veces el reinicio ganaba, borraba las respuestas y el paciente recibía
+  // "plan reiniciado" y "plan abandonado" a la vez. Ahora son secuenciales.
+  const abandon = await abandonarPlanesYNotificar();
+  const restart = await reiniciarPlanesYNotificar();
+  const [reset, nudges, recovery] = await Promise.all([
     resetStreaksYNotificar(),
     enviarActivationNudges(),
     enviarRecoveryEmails()

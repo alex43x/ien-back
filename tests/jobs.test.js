@@ -380,3 +380,87 @@ describe('reactivarSiAbandonado - reset completo al volver', () => {
     expect(plan).toBeNull();
   });
 });
+
+describe('run-daily - abandono antes que reinicio (AUD-04)', () => {
+  beforeEach(async () => { await seed(); });
+
+  async function crearPlanInactivo(dias, extra = {}) {
+    const uid = new mongoose.Types.ObjectId();
+    await Usuario.create({ _id: uid, nombre: 'Paciente', email: `p-${uid}@test.com`, password_hash: 'hash' });
+    const progreso = Array.from({ length: 30 }, (_, i) => ({
+      dia_numero: i + 1,
+      completado: i < 4,
+      fecha_completado: i < 4 ? new Date(Date.now() - (dias + 4 - i) * 86400000) : null,
+      respuesta_usuario: i < 4 ? { reflexion: `respuesta del día ${i + 1}` } : null
+    }));
+    await PlanProgreso.create({
+      usuario_id: uid,
+      tienda_id: new mongoose.Types.ObjectId(),
+      codigo_utilizado: 'TEST-RD',
+      estado: 'activo',
+      dia_actual: 5,
+      racha_dias: 4,
+      progreso_diario: progreso,
+      ultima_fecha_actividad: new Date(Date.now() - dias * 86400000),
+      ...extra
+    });
+    return uid;
+  }
+
+  test('un plan con 31 días sin actividad se abandona sin borrar respuestas ni avisar "reiniciado" (5 corridas)', async () => {
+    for (let corrida = 0; corrida < 5; corrida++) {
+      await clearAll();
+      await seed();
+      const uid = await crearPlanInactivo(31);
+      const res = await request(app)
+        .post('/api/jobs/run-daily')
+        .set('X-Api-Key', process.env.CRON_API_KEY || 'test-api-key');
+      expect(res.status).toBe(200);
+      expect(res.body.abandon.abandonados).toBe(1);
+      expect(res.body.restart.reiniciados).toBe(0);
+
+      const plan = await PlanProgreso.findOne({ usuario_id: uid }).lean();
+      expect(plan.estado).toBe('abandonado');
+      expect(plan.dia_actual).toBe(5);
+      expect(plan.progreso_diario[0].respuesta_usuario).toEqual({ reflexion: 'respuesta del día 1' });
+
+      const tipos = (await HistorialCorreo.find({ usuario_id: uid }).lean()).map(h => h.tipo_correo);
+      expect(tipos).toContain('plan_abandonado');
+      expect(tipos).not.toContain('plan_reiniciado');
+    }
+  });
+
+  test('un plan con 8 días sin actividad se reinicia (no se abandona)', async () => {
+    const uid = await crearPlanInactivo(8);
+    const res = await request(app)
+      .post('/api/jobs/run-daily')
+      .set('X-Api-Key', process.env.CRON_API_KEY || 'test-api-key');
+    expect(res.status).toBe(200);
+    expect(res.body.abandon.abandonados).toBe(0);
+    expect(res.body.restart.reiniciados).toBe(1);
+    const plan = await PlanProgreso.findOne({ usuario_id: uid }).lean();
+    expect(plan.estado).toBe('activo');
+    expect(plan.dia_actual).toBe(1);
+    const tipos = (await HistorialCorreo.find({ usuario_id: uid }).lean()).map(h => h.tipo_correo);
+    expect(tipos).toContain('plan_reiniciado');
+    expect(tipos).not.toContain('plan_abandonado');
+  });
+
+  test('reiniciarPlanesYNotificar no avisa si el update no reinició el plan', async () => {
+    const uid = await crearPlanInactivo(8);
+    // Simula la carrera: el plan es candidato, pero cuando llega el updateOne
+    // otro proceso ya lo cambió (modifiedCount 0).
+    const spy = jest.spyOn(PlanProgreso, 'updateOne').mockResolvedValueOnce({ acknowledged: true, matchedCount: 0, modifiedCount: 0 });
+    try {
+      const res = await reiniciarPlanesYNotificar();
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(res.total_candidatos).toBe(1);
+      expect(res.reiniciados).toBe(0);
+      expect(res.notificados).toBe(0);
+      const tipos = (await HistorialCorreo.find({ usuario_id: uid }).lean()).map(h => h.tipo_correo);
+      expect(tipos).not.toContain('plan_reiniciado');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});

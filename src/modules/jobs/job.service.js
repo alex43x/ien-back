@@ -104,11 +104,13 @@ async function reiniciarPlanesYNotificar() {
   const candidatos = await findPlanesParaReiniciar();
   if (candidatos.length === 0) return { reiniciados: 0, notificados: 0, fallidos: 0 };
 
-  const planIds = candidatos.map(c => c.plan_id);
-  let reiniciados = 0;
-  for (const id of planIds) {
+  // AUD-04: solo se notifica a quien efectivamente se le reinició el plan.
+  // Antes se enviaba el correo a todos los candidatos, aunque el updateOne no
+  // modificara nada (por ejemplo, porque el plan ya había sido abandonado).
+  const reiniciadosEfectivos = [];
+  for (const c of candidatos) {
     const r = await PlanProgreso.updateOne(
-      { _id: id, estado: 'activo' },
+      { _id: c.plan_id, estado: 'activo' },
       {
         $set: {
           dia_actual: 1,
@@ -122,12 +124,16 @@ async function reiniciarPlanesYNotificar() {
         }
       }
     );
-    if (r.modifiedCount > 0) reiniciados++;
+    if (r.modifiedCount > 0) reiniciadosEfectivos.push(c);
+  }
+  const reiniciados = reiniciadosEfectivos.length;
+  if (reiniciados === 0) {
+    return { reiniciados: 0, notificados: 0, fallidos: 0, total_candidatos: candidatos.length };
   }
 
-  const ids = candidatos.map(c => (c.usuario_id || c._id).toString());
+  const ids = reiniciadosEfectivos.map(c => (c.usuario_id || c._id).toString());
   const yaEnviados = await yaSeEnviaronBatch(ids, 'plan_reiniciado');
-  const { enviados, fallidos } = await enviarEnLote(candidatos, {
+  const { enviados, fallidos } = await enviarEnLote(reiniciadosEfectivos, {
     tipo_correo: 'plan_reiniciado',
     renderFn: (u) => ({ ...planReiniciado(u.nombre, u.dia_actual), meta: { dia_actual: u.dia_actual } }),
     skipFn: (u) => yaEnviados.has((u.usuario_id || u._id).toString())
