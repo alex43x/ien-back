@@ -16,6 +16,7 @@ const codigoRoutes = require('./modules/codigos/codigo.routes');
 const swaggerUi = require('swagger-ui-express');
 const { getSwaggerSpec } = require('./config/swagger');
 const { errorHandler } = require('./middlewares/errorHandler');
+const { registrarTokensMorgan, FORMATO_PRODUCCION } = require('./utils/morganFormat');
 
 const app = express();
 
@@ -43,7 +44,8 @@ app.use(cors({
 app.use(helmet());
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+registrarTokensMorgan(morgan);
+app.use(morgan(process.env.NODE_ENV === 'production' ? FORMATO_PRODUCCION : 'dev'));
 
 // Health check
 app.get('/health', (_req, res) => {

@@ -1,4 +1,4 @@
-const { resetStreaksYNotificar, sendReminders, enviarActivationNudges, enviarRecoveryEmails, abandonarPlanesYNotificar, reiniciarPlanesYNotificar } = require('./job.service');
+const { ejecutarTransicion, resetStreaksYNotificar, sendReminders, enviarActivationNudges, enviarRecoveryEmails, abandonarPlanesYNotificar, reiniciarPlanesYNotificar } = require('./job.service');
 const { tryCatch } = require('../../middlewares/errorHandler');
 
 exports.resetStreaks = tryCatch(async (_req, res) => {
@@ -32,7 +32,8 @@ exports.restartPlans = tryCatch(async (_req, res) => {
 });
 
 exports.runDaily = tryCatch(async (_req, res) => {
-  const mantenimiento = await require('./job.service').ejecutarTransicion();
+  // El evaluador decide una sola transición por intento y prioriza abandono.
+  const mantenimiento = await ejecutarTransicion();
   const nudges = await enviarActivationNudges();
   const recovery = await enviarRecoveryEmails();
   res.json({ mantenimiento, nudges, recovery });

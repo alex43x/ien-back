@@ -387,3 +387,107 @@ describe('reactivarSiAbandonado - reset completo al volver', () => {
     expect(plan).toBeNull();
   });
 });
+
+describe('run-daily - abandono antes que reinicio (AUD-04)', () => {
+  beforeEach(async () => { await seed(); });
+
+  async function crearPlanInactivo(dias, extra = {}) {
+    const uid = new mongoose.Types.ObjectId();
+    await Usuario.create({ _id: uid, nombre: 'Paciente', email: `p-${uid}@test.com`, password_hash: 'hash' });
+    const progreso = Array.from({ length: 30 }, (_, i) => ({
+      dia_numero: i + 1,
+      completado: i < 4,
+      fecha_completado: i < 4 ? new Date(Date.now() - (dias + 4 - i) * 86400000) : null,
+      respuesta_usuario: i < 4 ? { reflexion: `respuesta del día ${i + 1}` } : null
+    }));
+    const intento = await PlanProgreso.create({
+      usuario_id: uid,
+      tienda_id: new mongoose.Types.ObjectId(),
+      codigo_utilizado: 'TEST-RD',
+      fecha_inicio: new Date(Date.now() - (dias + 5) * 86400000),
+      estado: 'activo',
+      dia_actual: 5,
+      racha_dias: 4,
+      progreso_diario: progreso,
+      ultima_fecha_actividad: new Date(Date.now() - dias * 86400000),
+      ...extra
+    });
+    return intento.toObject();
+  }
+
+  test('dos corridas con 31 días de inactividad aplican solo abandono y conservan las respuestas', async () => {
+    const anterior = await crearPlanInactivo(31);
+    const correr = () => request(app).post('/api/jobs/run-daily')
+      .set('X-Api-Key', process.env.CRON_API_KEY || 'test-api-key').expect(200);
+    const corridas = await Promise.all([correr(), correr()]);
+    const aplicados = corridas.flatMap(res => res.body.mantenimiento.aplicados);
+    expect(aplicados.map(evento => evento.tipo)).toEqual(['plan_abandonado']);
+
+    const plan = await PlanProgreso.findById(anterior._id).lean();
+    expect(plan.estado).toBe('abandonado');
+    expect(plan.dia_actual).toBe(5);
+    expect(plan.progreso_diario).toEqual(anterior.progreso_diario);
+    expect(plan.eventos.map(evento => evento.tipo)).toEqual(['plan_abandonado']);
+    const sucesores = await PlanProgreso.find({ intento_anterior_id: anterior._id }).lean();
+    expect(sucesores).toHaveLength(1);
+    expect(sucesores[0].estado).toBe('pendiente');
+
+    const tipos = (await HistorialCorreo.find({ usuario_id: anterior.usuario_id }).lean()).map(h => h.tipo_correo);
+    expect(tipos).toContain('plan_abandonado');
+    expect(tipos).not.toContain('plan_reiniciado');
+    expect(tipos).not.toContain('racha_rota');
+  });
+
+  test('un plan con 8 días sin actividad se reinicia (no se abandona)', async () => {
+    const anterior = await crearPlanInactivo(8);
+    const res = await request(app)
+      .post('/api/jobs/run-daily')
+      .set('X-Api-Key', process.env.CRON_API_KEY || 'test-api-key');
+    expect(res.status).toBe(200);
+    expect(res.body.mantenimiento.abandonados).toBe(0);
+    expect(res.body.mantenimiento.reiniciados).toBe(1);
+    const plan = await PlanProgreso.findById(anterior._id).lean();
+    expect(plan.estado).toBe('reiniciado');
+    expect(plan.progreso_diario).toEqual(anterior.progreso_diario);
+    const sucesor = await PlanProgreso.findById(plan.sucesor_id).lean();
+    expect(sucesor.estado).toBe('pendiente');
+    expect(sucesor.dia_actual).toBe(1);
+    const tipos = (await HistorialCorreo.find({ usuario_id: anterior.usuario_id }).lean()).map(h => h.tipo_correo);
+    expect(tipos).toContain('plan_reiniciado');
+    expect(tipos).not.toContain('plan_abandonado');
+  });
+
+  test('reiniciarPlanesYNotificar no avisa si el update no reinició el plan', async () => {
+    const anterior = await crearPlanInactivo(8);
+    // Simula que el plan ya cambió cuando se intenta aplicar el cierre.
+    const spy = jest.spyOn(PlanProgreso, 'findOneAndUpdate').mockResolvedValueOnce(null);
+    try {
+      const res = await reiniciarPlanesYNotificar();
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(res.conflictos).toBe(1);
+      expect(res.reiniciados).toBe(0);
+      expect(res.notificados).toBe(0);
+      expect(await PlanProgreso.findById(anterior._id).lean()).toEqual(anterior);
+      expect(await PlanProgreso.countDocuments({ intento_anterior_id: anterior._id })).toBe(0);
+      const tipos = (await HistorialCorreo.find({ usuario_id: anterior.usuario_id }).lean()).map(h => h.tipo_correo);
+      expect(tipos).not.toContain('plan_reiniciado');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe('findUsuariosSinActivar - solo pacientes (AUD-06)', () => {
+  test('no incluye admins ni moderadores aunque no tengan plan', async () => {
+    const data = await seed();
+    const viejo = new Date(Date.now() - 10 * 86400000);
+    await Usuario.updateMany({}, { $set: { fecha_registro: viejo } });
+    const { findUsuariosSinActivar } = require('../src/modules/jobs/cronJobs');
+    const resultado = await findUsuariosSinActivar();
+    const ids = resultado.map(u => String(u._id));
+    expect(ids).toContain(String(data.usuario._id));
+    expect(ids).not.toContain(String(data.adminGeneral._id));
+    expect(ids).not.toContain(String(data.adminNegocio._id));
+    expect(ids).not.toContain(String(data.moderador._id));
+  });
+});

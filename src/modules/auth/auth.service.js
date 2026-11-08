@@ -6,6 +6,7 @@ const Tienda = require('../../models/Tienda');
 const Codigo = require('../../models/Codigo');
 const RefreshToken = require('../../models/RefreshToken');
 const PasswordResetToken = require('../../models/PasswordResetToken');
+const HistorialCorreo = require('../../models/HistorialCorreo');
 const Producto = require('../../models/Producto');
 const AppError = require('../../utils/AppError');
 const { isValidEmail, isValidPasswordLength } = require('../../utils/validators');
@@ -13,6 +14,11 @@ const { enviarCorreo } = require('../email/email.service');
 const { bienvenida, recuperacionContrasena } = require('../email/templates');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+
+// SEG-05: hash dummy precomputado (costo 10, igual que los reales) para que el
+// login con email inexistente ejecute el mismo trabajo bcrypt que el login con
+// email existente y no revele por timing si la cuenta existe.
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-not-used-ien', 10);
 
 // Paraguay opera en UTC-3 (DST permanente desde 2024). La hora que elige el
 // usuario es hora local PY; para guardarla/compararla con el cron la pasamos a UTC.
@@ -184,6 +190,8 @@ exports.login = async ({ email, password }) => {
 
   const usuario = await Usuario.findOne({ email }).lean();
   if (!usuario) {
+    // SEG-05: costo constante — mismo trabajo bcrypt que la rama existente.
+    await bcrypt.compare(password, DUMMY_HASH);
     throw new AppError(401, 'Credenciales inválidas');
   }
 
@@ -203,13 +211,16 @@ exports.refreshToken = async (refreshTokenPlano) => {
   }
 
   const token_hash = crypto.createHash('sha256').update(refreshTokenPlano).digest('hex');
-  const doc = await RefreshToken.findOne({ token_hash, revocado: false, fecha_expiracion: { $gt: new Date() } });
+  // SEG-04: consumo atómico — solo una redención concurrente puede ganar el
+  // findOneAndUpdate condicional; el resto ve revocado:true y recibe 401.
+  const doc = await RefreshToken.findOneAndUpdate(
+    { token_hash, revocado: false, fecha_expiracion: { $gt: new Date() } },
+    { $set: { revocado: true } },
+    { new: false }
+  );
   if (!doc) {
     throw new AppError(401, 'Refresh token inválido o expirado');
   }
-
-  doc.revocado = true;
-  await doc.save();
 
   const access_token = generarAccessToken({ _id: doc.usuario_id });
   const refresh_token = await generarRefreshToken(doc.usuario_id);
@@ -222,11 +233,12 @@ exports.logout = async (refreshTokenPlano) => {
   }
 
   const token_hash = crypto.createHash('sha256').update(refreshTokenPlano).digest('hex');
-  const doc = await RefreshToken.findOne({ token_hash, revocado: false });
-  if (doc) {
-    doc.revocado = true;
-    await doc.save();
-  }
+  // SEG-04: revocación atómica (mismo patrón que refreshToken).
+  await RefreshToken.findOneAndUpdate(
+    { token_hash, revocado: false },
+    { $set: { revocado: true } },
+    { new: false }
+  );
 
   return { mensaje: 'Sesión cerrada' };
 };
@@ -245,6 +257,30 @@ exports.forgotPassword = async (email) => {
   const usuario = await Usuario.findOne({ email });
 
   if (usuario) {
+    // SEG-06: presupuesto por destinatario (compartido entre réplicas porque
+    // vive en MongoDB, no en el MemoryStore del rate-limiter por IP). Cooldown
+    // de 5 minutos + tope de 5 envíos/24h por cuenta. En exceso se responde el
+    // 200 genérico del controller sin crear token ni enviar correo.
+    // AUD-02: el tope diario se cuenta en HistorialCorreo (TTL de 60 días) y no
+    // en PasswordResetToken, cuyo índice TTL borra cada token ~45 min después
+    // de creado; contarlo ahí dejaba pasar ~5 correos cada 45 min.
+    // El cooldown sí puede usar PasswordResetToken (5 min < 45 min de vida).
+    const ahora = new Date();
+    const [reciente, enviadosUltimas24h] = await Promise.all([
+      PasswordResetToken.findOne({
+        usuario_id: usuario._id,
+        fecha_creacion: { $gte: new Date(ahora.getTime() - 5 * 60 * 1000) }
+      }).select('_id').lean(),
+      HistorialCorreo.countDocuments({
+        usuario_id: usuario._id,
+        tipo_correo: 'recuperacion_contrasena',
+        fecha_envio: { $gte: new Date(ahora.getTime() - 24 * 60 * 60 * 1000) }
+      })
+    ]);
+    if (reciente || enviadosUltimas24h >= 5) {
+      return;
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
     const token_hash = crypto.createHash('sha256').update(token).digest('hex');
     const fecha_expiracion = new Date(Date.now() + 15 * 60 * 1000);
@@ -322,6 +358,11 @@ exports.resetPassword = async (token, nuevaPassword) => {
     { usuario_id: usuario._id, revocado: false },
     { revocado: true }
   );
+  // AUD-12: los demás links de recuperación pendientes dejan de servir.
+  await PasswordResetToken.updateMany(
+    { usuario_id: usuario._id, usado: false },
+    { usado: true }
+  );
 
   return { mensaje: 'Contraseña actualizada' };
 };
@@ -351,6 +392,11 @@ exports.changePassword = async (userId, currentPassword, nuevaPassword) => {
   await RefreshToken.updateMany(
     { usuario_id: usuario._id, revocado: false },
     { revocado: true }
+  );
+  // AUD-12: si había un link de recuperación pendiente, deja de servir.
+  await PasswordResetToken.updateMany(
+    { usuario_id: usuario._id, usado: false },
+    { usado: true }
   );
 
   return { mensaje: 'Contraseña actualizada. Todas las sesiones anteriores fueron cerradas.' };

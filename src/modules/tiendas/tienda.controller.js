@@ -61,6 +61,12 @@ exports.actualizar = tryCatch(async (req, res) => {
   };
 
   if (req.body.grupo_id !== undefined) {
+    // SEG-03: solo admin_general puede mover una sucursal de grupo. El scope
+    // de tenants deriva de Tienda.grupo_id, así que permitirlo a admin_negocio
+    // entrega el catálogo (productos/códigos) de otro negocio a sus moderadores.
+    if (req.usuario.rol !== 'admin_general') {
+      throw new AppError(403, 'Solo admin_general puede cambiar el grupo de una sucursal');
+    }
     const grupoExiste = await Grupo.findById(req.body.grupo_id).select('_id').lean();
     if (!grupoExiste) {
       throw new AppError(400, 'El grupo indicado no existe');

@@ -2456,6 +2456,13 @@ async function seed() {
 }
 
 if (require.main === module) {
+  // SEG-NV2: el seed instala credenciales fijas públicas (admin@ien.test / admin123)
+  // y hace deleteMany() de todas las colecciones. En producción solo corre con
+  // opt-in explícito para no poblar/sobrescribir una base desplegada por error.
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED !== 'true') {
+    console.error('Seed bloqueado en producción: definí ALLOW_SEED=true para ejecutarlo explícitamente.');
+    process.exit(1);
+  }
   seed().catch((err) => {
     console.error('Error en seed:', err);
     process.exitCode = 1;

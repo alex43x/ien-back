@@ -116,7 +116,15 @@ async function marcarDiaCompletado(planId, respuestaUsuario, skipValidation = fa
               in: {
                 $cond: {
                   if: { $eq: ['$$dia.dia_numero', plan.dia_actual] },
-                  then: { $mergeObjects: ['$$dia', { completado: true, fecha_completado: ahora, respuesta_usuario: { $literal: respuestaUsuario ?? null }, contenido_snapshot: { $literal: snapshot } }] },
+                  // SEG-02: MongoDB debe guardar los datos, sin evaluarlos como expresiones.
+                  then: {
+                    $mergeObjects: ['$$dia', {
+                      completado: true,
+                      fecha_completado: ahora,
+                      respuesta_usuario: { $literal: respuestaUsuario ?? null },
+                      contenido_snapshot: { $literal: snapshot }
+                    }]
+                  },
                   else: '$$dia'
                 }
               }
