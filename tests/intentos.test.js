@@ -25,6 +25,21 @@ test('prioridad, corte estricto UTC y fechas anómalas', () => {
   expect(decidir({ ...p, ultima_fecha_actividad: new Date(+now - 7 * 86400000) }, now)).toBe('plan_reiniciado');
   expect(decidir({ ...p, ultima_fecha_actividad: new Date(+now - 30 * 86400000) }, now)).toBe('plan_abandonado');
   expect(decidir({ ...p, ultima_fecha_actividad: new Date(+now + 1) }, now)).toBeNull();
+  expect(decidir({ ...p, dia_actual: 1, ultima_fecha_actividad: new Date(+now - 8 * 86400000) }, now)).toBe('racha_rota');
+  expect(decidir({ ...p, estado: 'completado', ultima_fecha_actividad: new Date('2026-01-01') }, now)).toBeNull();
+  expect(decidir({ ...p, ultima_fecha_actividad: new Date('2026-11-06T23:59:59.999Z') }, now)).toBeNull();
+});
+
+test('fechas ausentes, inválidas y fuera de inicio quedan como anomalías sin cierre', async () => {
+  const base = { fecha_inicio: new Date('2026-11-01'), dia_actual: 3, racha_dias: 4 };
+  const [sinActividad, futura, anterior] = await Promise.all([
+    fixture({ ...base, ultima_fecha_actividad: null }),
+    fixture({ ...base, ultima_fecha_actividad: new Date('2026-11-08') }),
+    fixture({ ...base, ultima_fecha_actividad: new Date('2026-10-31') })
+  ]);
+  const r = await evaluar({ ahora: now });
+  expect(r.anomalias).toBe(3);
+  for (const id of [sinActividad, futura, anterior]) expect((await Plan.findById(id._id)).estado).toBe('activo');
 });
 test('dos corridas preservan respuestas y crean un único sucesor pendiente', async () => {
   const p = await fixture();
@@ -38,6 +53,22 @@ test('dos corridas preservan respuestas y crean un único sucesor pendiente', as
   expect(nuevo.estado).toBe('pendiente');
   expect(nuevo.ultima_fecha_actividad).toBeNull();
   expect(nuevo.progreso_diario.every(d => !d.completado)).toBe(true);
+});
+
+test('evaluación y completado simultáneos no cierran una actividad recién guardada', async () => {
+  const data = await seed();
+  const p = await fixture({ usuario_id: data.usuario._id, tienda_id: data.tienda1Id, dia_actual: 2,
+    ultima_fecha_actividad: new Date('2026-11-06T00:00:00Z'), progreso_diario: [{ dia_numero: 2, completado: false }] });
+  const { completeDay } = require('../src/modules/plan/plan.service');
+  const [evaluacion, completado] = await Promise.allSettled([
+    evaluar({ ahora: now }),
+    completeDay(data.usuario._id, { respuesta: 'llega primero' }, { plan_id: p._id, dia_actual: 2 })
+  ]);
+  const actual = await Plan.findById(p._id).lean();
+  expect(actual.progreso_diario.find(d => d.dia_numero === 2).respuesta_usuario).toEqual({ respuesta: 'llega primero' });
+  expect(['activo', 'reiniciado']).toContain(actual.estado);
+  expect(evaluacion.status).toBe('fulfilled');
+  expect(completado.status).toBe('fulfilled');
 });
 test('reconciliación de un cierre interrumpido es idempotente', async () => {
   const p = await fixture({ estado: 'reiniciado', fecha_cierre: now, sucesor_id: new mongoose.Types.ObjectId() });
@@ -58,6 +89,16 @@ test('activar dos veces usa el mismo intento y rechaza otro propietario', async 
   await expect(activar(new mongoose.Types.ObjectId(), p._id)).rejects.toThrow();
   await require('../src/models/Tienda').updateOne({ _id: data.tienda1Id }, { $set: { activo: false } });
   await expect(activar(p.usuario_id, p._id)).rejects.toThrow('La tienda');
+});
+
+test('continuar concurrentemente activa un solo sucesor', async () => {
+  const data = await seed();
+  const viejo = await fixture({ usuario_id: data.usuario._id, tienda_id: data.tienda1Id, estado: 'reiniciado', fecha_cierre: now });
+  const { continuar } = require('../src/modules/plan/intentos.service');
+  const resultados = await Promise.allSettled([continuar(data.usuario._id), continuar(data.usuario._id), continuar(data.usuario._id)]);
+  expect(resultados.filter(r => r.status === 'fulfilled')).toHaveLength(3);
+  expect(await Plan.countDocuments({ intento_anterior_id: viejo._id })).toBe(1);
+  expect(await Plan.countDocuments({ usuario_id: data.usuario._id, estado: 'activo' })).toBe(1);
 });
 
 test('migración dry-run no escribe y apply conserva contenido y puede repetirse', async () => {
