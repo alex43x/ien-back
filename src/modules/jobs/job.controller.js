@@ -1,6 +1,5 @@
 const { resetStreaksYNotificar, sendReminders, enviarActivationNudges, enviarRecoveryEmails, abandonarPlanesYNotificar, reiniciarPlanesYNotificar } = require('./job.service');
 const { tryCatch } = require('../../middlewares/errorHandler');
-const AppError = require('../../utils/AppError');
 
 exports.resetStreaks = tryCatch(async (_req, res) => {
   const result = await resetStreaksYNotificar();
@@ -33,14 +32,8 @@ exports.restartPlans = tryCatch(async (_req, res) => {
 });
 
 exports.runDaily = tryCatch(async (_req, res) => {
-  // Orden importa: primero abandonar (30d) y luego reiniciar (7d), así un plan
-  // que ya lleva 30 días no se reinicia antes de ser abandonado.
-  const [abandon, restart, reset, nudges, recovery] = await Promise.all([
-    abandonarPlanesYNotificar(),
-    reiniciarPlanesYNotificar(),
-    resetStreaksYNotificar(),
-    enviarActivationNudges(),
-    enviarRecoveryEmails()
-  ]);
-  res.json({ abandon, restart, reset, nudges, recovery });
+  const mantenimiento = await require('./job.service').ejecutarTransicion();
+  const nudges = await enviarActivationNudges();
+  const recovery = await enviarRecoveryEmails();
+  res.json({ mantenimiento, nudges, recovery });
 });

@@ -64,7 +64,7 @@ exports.getProgresoPaciente = async (usuarioId, tiendasPermitidas) => {
   await obtenerPacienteConScope(usuarioId, tiendasPermitidas);
 
   const plan = await PlanProgreso.findOne({ usuario_id: usuarioId })
-    .sort({ fecha_inicio: -1 })
+    .sort({ fecha_inicio: -1, _id: -1 })
     .select('estado dia_actual racha_dias racha_maxima hitos_alcanzados fecha_inicio ultima_fecha_actividad test_inicial progreso_diario')
     .lean();
 
@@ -89,7 +89,7 @@ exports.getTestInicialPaciente = async (usuarioId, tiendasPermitidas) => {
   await obtenerPacienteConScope(usuarioId, tiendasPermitidas);
 
   const plan = await PlanProgreso.findOne({ usuario_id: usuarioId })
-    .sort({ fecha_inicio: -1 })
+    .sort({ fecha_inicio: -1, _id: -1 })
     .select('test_inicial');
 
   if (!plan || !plan.test_inicial) {
@@ -123,7 +123,7 @@ exports.getActividadesPaciente = async (usuarioId, tiendasPermitidas) => {
   await obtenerPacienteConScope(usuarioId, tiendasPermitidas);
 
   const plan = await PlanProgreso.findOne({ usuario_id: usuarioId })
-    .sort({ fecha_inicio: -1 })
+    .sort({ fecha_inicio: -1, _id: -1 })
     .select('progreso_diario')
     .lean();
 
@@ -220,12 +220,12 @@ exports.getGraficaSemanal = async (tiendasPermitidas) => {
 
   const resultados = await Promise.all(
     dias.map(async ({ inicio, fin }) => {
-      const cantidad = await PlanProgreso.countDocuments({
+      const usuarios = await PlanProgreso.distinct('usuario_id', {
         ...scopeFiltro,
         ultima_fecha_actividad: { $gte: inicio, $lt: fin }
       });
       const fecha = inicio.toISOString().split('T')[0];
-      return { fecha, cantidad };
+      return { fecha, cantidad: usuarios.length };
     })
   );
 
@@ -258,7 +258,7 @@ exports.listarPacientes = async (pagina, limite, tiendasPermitidas, busqueda = '
 
   const ids = usuarios.map(u => u._id);
   const planes = await PlanProgreso.find({ usuario_id: { $in: ids } })
-    .sort({ fecha_inicio: -1 })
+    .sort({ fecha_inicio: -1, _id: -1 })
     .select('usuario_id estado dia_actual racha_dias ultima_fecha_actividad')
     .lean();
 
@@ -546,4 +546,24 @@ exports.eliminarModeradorTienda = async (usuarioId, tiendasPermitidas) => {
 
   await Usuario.findByIdAndDelete(usuarioId);
   return { mensaje: 'Moderador eliminado' };
+};
+
+exports.listarIntentosPaciente = async (usuarioId, tiendasPermitidas, page = 1) => {
+  await obtenerPacienteConScope(usuarioId, tiendasPermitidas);
+  const filtro = { usuario_id: usuarioId, ...(tiendasPermitidas === null ? {} : { tienda_id: { $in: tiendasPermitidas } }) };
+  const [intentos, total] = await Promise.all([
+    PlanProgreso.find(filtro).sort({ fecha_inicio: -1, _id: -1 }).skip((page - 1) * 20).limit(20)
+      .select('numero_intento estado fecha_inicio fecha_cierre motivo_cierre dia_actual racha_dias racha_maxima').lean(),
+    PlanProgreso.countDocuments(filtro)
+  ]);
+  return { intentos, total, page };
+};
+exports.detalleIntentoPaciente = async (usuarioId, planId, tiendasPermitidas) => {
+  await obtenerPacienteConScope(usuarioId, tiendasPermitidas);
+  if (!mongoose.isValidObjectId(planId)) throw new AppError(400, 'Intento inválido');
+  const plan = await PlanProgreso.findOne({ _id: planId, usuario_id: usuarioId }).lean();
+  if (!plan || !enScope(plan.tienda_id, tiendasPermitidas)) throw new AppError(404, 'Intento no encontrado');
+  // Los detalles de entrega internos no forman parte del contrato administrativo.
+  plan.eventos = (plan.eventos || []).map(e => ({ tipo: e.tipo, fecha: e.fecha, motivo: e.motivo, envio: e.envio }));
+  return plan;
 };

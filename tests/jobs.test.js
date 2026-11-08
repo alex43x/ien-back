@@ -78,6 +78,7 @@ describe('demoledorDeRachas - racha_rota_en', () => {
     await PlanProgreso.create({
       usuario_id: uid,
       tienda_id: new mongoose.Types.ObjectId(),
+      fecha_inicio: new Date('2020-01-01T00:00:00Z'),
       codigo_utilizado: 'TEST-001',
       estado: 'activo',
       racha_dias: 5,
@@ -98,6 +99,7 @@ describe('demoledorDeRachas - racha_rota_en', () => {
     await PlanProgreso.create({
       usuario_id: uid,
       tienda_id: new mongoose.Types.ObjectId(),
+      fecha_inicio: new Date('2020-01-01T00:00:00Z'),
       codigo_utilizado: 'TEST-002',
       estado: 'activo',
       racha_dias: 0,
@@ -214,6 +216,7 @@ describe('send-reminders - deduplicación', () => {
     await PlanProgreso.create({
       usuario_id: usuario._id,
       tienda_id: tiendaId,
+      fecha_inicio: new Date('2020-01-01T00:00:00Z'),
       codigo_utilizado: 'DEDUP-001',
       estado: 'activo',
       dia_actual: 1
@@ -244,6 +247,7 @@ describe('findPlanesParaAbandonar - 30 días de inactividad', () => {
     return PlanProgreso.create({
       usuario_id: uid,
       tienda_id: new mongoose.Types.ObjectId(),
+      fecha_inicio: new Date('2020-01-01T00:00:00Z'),
       codigo_utilizado: 'TEST-ABN',
       estado: 'activo',
       ultima_fecha_actividad: new Date(Date.now() - dias * 24 * 60 * 60 * 1000),
@@ -279,6 +283,7 @@ describe('abandonarPlanesYNotificar', () => {
     await PlanProgreso.create({
       usuario_id: uid,
       tienda_id: new mongoose.Types.ObjectId(),
+      fecha_inicio: new Date('2020-01-01T00:00:00Z'),
       codigo_utilizado: 'TEST-ABN2',
       estado: 'activo',
       ultima_fecha_actividad: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000)
@@ -287,21 +292,22 @@ describe('abandonarPlanesYNotificar', () => {
     const res = await abandonarPlanesYNotificar();
     expect(res.abandonados).toBe(1);
 
-    const plan = await PlanProgreso.findOne({ usuario_id: uid }).lean();
+    const plan = await PlanProgreso.findOne({ usuario_id: uid, estado: 'abandonado' }).lean();
     expect(plan.estado).toBe('abandonado');
   });
 });
 
-describe('reiniciarPlanesYNotificar - reset parcial', () => {
+describe('reiniciarPlanesYNotificar - historial conservado', () => {
   beforeEach(async () => { await seed(); });
 
-  test('reinciia dia y racha, conserva racha_maxima/hitos y no toca ultima_fecha_actividad', async () => {
+  test('cierra el intento y crea un sucesor sin vaciar el original', async () => {
     const uid = new mongoose.Types.ObjectId();
     await Usuario.create({ _id: uid, nombre: 'A', email: 'a@test.com', password_hash: 'hash' });
     const fechaVieja = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
     await PlanProgreso.create({
       usuario_id: uid,
       tienda_id: new mongoose.Types.ObjectId(),
+      fecha_inicio: new Date('2020-01-01T00:00:00Z'),
       codigo_utilizado: 'TEST-RST',
       estado: 'activo',
       dia_actual: 5,
@@ -314,9 +320,11 @@ describe('reiniciarPlanesYNotificar - reset parcial', () => {
     const res = await reiniciarPlanesYNotificar();
     expect(res.reiniciados).toBe(1);
 
-    const plan = await PlanProgreso.findOne({ usuario_id: uid }).lean();
-    expect(plan.dia_actual).toBe(1);
-    expect(plan.racha_dias).toBe(0);
+    const plan = await PlanProgreso.findOne({ usuario_id: uid, estado: 'reiniciado' }).lean();
+    expect(plan.estado).toBe('reiniciado');
+    expect(plan.dia_actual).toBe(5);
+    expect(plan.racha_dias).toBe(4);
+    expect(await PlanProgreso.countDocuments({ intento_anterior_id: plan._id, estado: 'pendiente' })).toBe(1);
     expect(plan.racha_maxima).toBe(14);
     expect(plan.hitos_alcanzados).toEqual([7, 14]);
     expect(plan.ultima_fecha_actividad.getTime()).toBe(fechaVieja.getTime());
@@ -329,6 +337,7 @@ describe('reiniciarPlanesYNotificar - reset parcial', () => {
     await PlanProgreso.create({
       usuario_id: uid,
       tienda_id: new mongoose.Types.ObjectId(),
+      fecha_inicio: new Date('2020-01-01T00:00:00Z'),
       codigo_utilizado: 'TEST-RST2',
       estado: 'activo',
       dia_actual: 1,
@@ -349,6 +358,7 @@ describe('reactivarSiAbandonado - reset completo al volver', () => {
     await PlanProgreso.create({
       usuario_id: uid,
       tienda_id: new mongoose.Types.ObjectId(),
+      fecha_inicio: new Date('2020-01-01T00:00:00Z'),
       codigo_utilizado: 'TEST-REA',
       estado: 'abandonado',
       dia_actual: 20,
@@ -358,13 +368,9 @@ describe('reactivarSiAbandonado - reset completo al volver', () => {
       ultima_fecha_actividad: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000)
     });
 
-    const plan = await reactivarSiAbandonado(uid);
-    expect(plan.estado).toBe('activo');
-    expect(plan.dia_actual).toBe(1);
-    expect(plan.racha_dias).toBe(0);
-    expect(plan.racha_maxima).toBe(0);
-    expect(plan.hitos_alcanzados).toEqual([]);
-    expect(plan.progreso_diario.filter(d => d.completado).length).toBe(0);
+    const before = await PlanProgreso.findOne({ usuario_id: uid }).lean();
+    expect(await reactivarSiAbandonado(uid)).toBeNull();
+    expect(await PlanProgreso.findOne({ usuario_id: uid }).lean()).toEqual(before);
   });
 
   test('devuelve null si no hay plan abandonado', async () => {
@@ -373,6 +379,7 @@ describe('reactivarSiAbandonado - reset completo al volver', () => {
     await PlanProgreso.create({
       usuario_id: uid,
       tienda_id: new mongoose.Types.ObjectId(),
+      fecha_inicio: new Date('2020-01-01T00:00:00Z'),
       codigo_utilizado: 'TEST-REA2',
       estado: 'activo'
     });

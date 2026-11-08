@@ -15,6 +15,9 @@ async function panelAdminPorTienda(tiendasPermitidas = null) {
 
   return PlanProgreso.aggregate([
     { $match: { tienda_id: { $in: activasIds } } },
+    { $sort: { fecha_inicio: -1, _id: -1 } },
+    { $group: { _id: '$usuario_id', plan: { $first: '$$ROOT' } } },
+    { $replaceRoot: { newRoot: '$plan' } },
     {
       $group: {
         _id: '$tienda_id',

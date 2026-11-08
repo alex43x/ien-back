@@ -45,7 +45,7 @@ exports.profile = tryCatch(async (req, res) => {
 
 exports.completeDay = tryCatch(async (req, res) => {
   const { respuesta_usuario } = req.body;
-  const result = await completeDay(req.usuario.id, respuesta_usuario);
+  const result = await completeDay(req.usuario.id, respuesta_usuario, req.body);
   res.json(result);
 });
 

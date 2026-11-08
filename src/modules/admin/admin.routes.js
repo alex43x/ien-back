@@ -28,6 +28,17 @@ const router = Router();
 
 // Auth + verificar que es algún tipo de admin + scope
 router.use(authMiddleware, adminMiddleware, scopeTiendaMiddleware);
+const { tryCatch } = require('../../middlewares/errorHandler');
+const intentosAdmin = require('./admin.service');
+router.get('/pacientes/:usuarioId/intentos', requireRol('admin_general', 'admin_negocio'), tryCatch(async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  res.json(await intentosAdmin.listarIntentosPaciente(req.params.usuarioId, req.tiendasPermitidas, page));
+}));
+router.get('/pacientes/:usuarioId/intentos/:planId', requireRol('admin_general', 'admin_negocio'), tryCatch(async (req, res) => {
+  res.json(await intentosAdmin.detalleIntentoPaciente(req.params.usuarioId, req.params.planId, req.tiendasPermitidas));
+}));
+router.use('/simulacion', require('./simulacion.routes'));
+
 
 // ── Crear moderador — accesible para admin_negocio Y admin_general ───────────
 // Debe declararse ANTES del requireRol global de abajo

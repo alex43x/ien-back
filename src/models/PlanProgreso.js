@@ -25,7 +25,8 @@ const diaProgresoSchema = new Schema({
   fecha_completado: { type: Date, default: null },
   // Respuesta libre del usuario al ejercicio del día. Sin validación de forma
   // interna — varía por tipo de ejercicio (reflexion, registro, practica).
-  respuesta_usuario: { type: Schema.Types.Mixed, default: null }
+  respuesta_usuario: { type: Schema.Types.Mixed, default: null },
+  contenido_snapshot: Schema.Types.Mixed
 }, { _id: false });
 
 const planProgresoSchema = new Schema({
@@ -39,7 +40,19 @@ const planProgresoSchema = new Schema({
   racha_rota_en: { type: Date, default: null },
   hitos_alcanzados: { type: [Number], default: [] },
   ultima_fecha_actividad: { type: Date, default: Date.now },
-  estado: { type: String, enum: ['activo', 'completado', 'abandonado'], default: 'activo' },
+  estado: { type: String, enum: ['pendiente', 'activo', 'completado', 'reiniciado', 'abandonado'], default: 'activo' },
+  numero_intento: { type: Number, default: 1 },
+  intento_anterior_id: { type: Schema.Types.ObjectId, ref: 'PlanProgreso' },
+  sucesor_id: { type: Schema.Types.ObjectId, ref: 'PlanProgreso' },
+  evento_origen_id: Schema.Types.ObjectId,
+  fecha_cierre: Date,
+  motivo_cierre: String,
+  test_inicial_origen_id: { type: Schema.Types.ObjectId, ref: 'PlanProgreso' },
+  eventos: { type: [new Schema({
+    tipo: String, fecha: Date, motivo: String, meta: Schema.Types.Mixed,
+    envio: { type: String, default: 'pendiente' },
+    lease: Date, claim: String, intentos: { type: Number, default: 0 }, proveedor_id: String
+  })], default: [] },
   test_inicial: testInicialSchema,
   progreso_diario: {
     type: [diaProgresoSchema],
@@ -62,5 +75,7 @@ planProgresoSchema.index(
 );
 
 planProgresoSchema.index({ racha_rota_en: 1 });
+planProgresoSchema.index({ intento_anterior_id: 1 }, { unique: true, partialFilterExpression: { intento_anterior_id: { $type: 'objectId' } } });
+planProgresoSchema.index({ usuario_id: 1, fecha_inicio: -1, _id: -1 });
 
 module.exports = mongoose.model('PlanProgreso', planProgresoSchema, 'planes_progreso');

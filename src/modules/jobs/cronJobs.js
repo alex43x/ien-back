@@ -29,6 +29,7 @@ async function findUsuariosRezagados(horaUtcActual, minutoUtcActual) {
     },
     {
       $project: {
+        plan_id: '$_id',
         usuario_id: 1,
         dia_actual: 1,
         racha_dias: 1,
@@ -55,30 +56,8 @@ async function findUsuariosRezagados(horaUtcActual, minutoUtcActual) {
  * que completaron a las 23:59 UTC del día anterior dentro de la misma ventana.
  */
 async function demoledorDeRachas() {
-  const inicioDeDiaDeAyer = getInicioDeDiaDeAyer();
-  const filtro = {
-    estado: 'activo',
-    ultima_fecha_actividad: { $lt: inicioDeDiaDeAyer },
-    racha_dias: { $gt: 0 }
-  };
-
-  const planesAfectados = await PlanProgreso
-    .find(filtro)
-    .select('usuario_id racha_dias')
-    .lean();
-
-  const resultado = await PlanProgreso.updateMany(filtro, {
-    $set: { racha_dias: 0, racha_rota_en: new Date() }
-  });
-
-  return {
-    matchedCount: resultado.matchedCount,
-    modifiedCount: resultado.modifiedCount,
-    usuarios_afectados: planesAfectados.map(p => ({
-      usuario_id: p.usuario_id,
-      racha_rota: p.racha_dias
-    }))
-  };
+  const r = await require('../plan/intentos.service').evaluar({ tipo: 'racha_rota' });
+  return { matchedCount: r.aplicados.length, modifiedCount: r.aplicados.length, usuarios_afectados: r.aplicados };
 }
 
 async function findUsuariosSinActivar() {
@@ -108,7 +87,7 @@ async function findUsuariosParaRecuperar() {
     },
     { $lookup: { from: 'usuarios', localField: 'usuario_id', foreignField: '_id', as: 'usuario' } },
     { $unwind: '$usuario' },
-    { $project: { usuario_id: 1, dia_actual: 1, nombre: '$usuario.nombre', email: '$usuario.email' } }
+    { $project: { plan_id: '$_id', usuario_id: 1, dia_actual: 1, nombre: '$usuario.nombre', email: '$usuario.email' } }
   ]);
 }
 

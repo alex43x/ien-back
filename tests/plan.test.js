@@ -136,7 +136,7 @@ describe('Plan - today, days, profile, complete-day', () => {
     const res = await request(app)
       .post('/api/plan/complete-day')
       .set('Authorization', `Bearer ${token}`)
-      .send({ respuesta_usuario: { reflexion: 'Test reflection', estado_animo: 4 } });
+      .send({ plan_id: planId, dia_actual: 1, respuesta_usuario: { reflexion: 'Test reflection', estado_animo: 4 } });
     expect(res.status).toBe(200);
     expect(res.body.racha_dias).toBeDefined();
   });
@@ -145,11 +145,11 @@ describe('Plan - today, days, profile, complete-day', () => {
     await request(app)
       .post('/api/plan/complete-day')
       .set('Authorization', `Bearer ${token}`)
-      .send({ respuesta_usuario: { reflexion: 'Test', estado_animo: 4 } });
+      .send({ plan_id: planId, dia_actual: 1, respuesta_usuario: { reflexion: 'Test', estado_animo: 4 } });
     const res = await request(app)
       .post('/api/plan/complete-day')
       .set('Authorization', `Bearer ${token}`)
-      .send({ respuesta_usuario: { reflexion: 'Test2', estado_animo: 3 } });
+      .send({ plan_id: planId, dia_actual: 1, respuesta_usuario: { reflexion: 'Test2', estado_animo: 3 } });
     expect(res.status).toBe(409);
   });
 
@@ -207,7 +207,7 @@ describe('Plan - testing endpoints', () => {
     const res = await request(app)
       .post('/api/plan/testing/advance')
       .set('Authorization', `Bearer ${token}`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(410);
   });
 
   test('POST /api/plan/testing/retreat - success', async () => {
@@ -226,9 +226,7 @@ describe('Plan - testing endpoints', () => {
     const res = await request(app)
       .post('/api/plan/testing/retreat')
       .set('Authorization', `Bearer ${token}`);
-    expect(res.status).toBe(200);
-    expect(res.body.dia_retrocedido).toBeDefined();
-    expect(res.body.dia_actual).toBeDefined();
+    expect(res.status).toBe(410);
   });
 
   test('POST /api/plan/testing/retreat - 409 sin días completados', async () => {
@@ -243,6 +241,6 @@ describe('Plan - testing endpoints', () => {
     const res = await request(app)
       .post('/api/plan/testing/retreat')
       .set('Authorization', `Bearer ${token}`);
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(410);
   });
 });

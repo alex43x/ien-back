@@ -7,6 +7,14 @@ const { setupTest, getTestInicial, today, profile, days, completeDay, advanceDay
 const router = Router();
 
 router.use(authMiddleware);
+router.post('/intentos/continuar', require('../../middlewares/errorHandler').tryCatch(async (req, res) => {
+  const plan = await require('./intentos.service').continuar(req.usuario.id);
+  res.json({ plan_id: plan._id, estado: plan.estado });
+}));
+router.post('/intentos/:planId/activar', require('../../middlewares/errorHandler').tryCatch(async (req, res) => {
+  const plan = await require('./intentos.service').activar(req.usuario.id, req.params.planId);
+  res.json({ plan_id: plan._id, estado: plan.estado });
+}));
 
 /**
  * @swagger

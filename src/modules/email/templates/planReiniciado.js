@@ -8,8 +8,8 @@ function planReiniciado(nombre, dia, baseUrl) {
       ${label('Nuevo comienzo', C.teal)}
       ${title('Retomamos tu programa desde el inicio')}
       ${body('Hola, <strong>' + escapeHtml(nombre) + '</strong>,')}
-      ${body('Pasó más de una semana sin actividad y reiniciamos tu programa desde el <strong>Día 1</strong> para que vuelvas a empezar con energía.')}
-      ${body('Tus hitos de racha alcanzados se mantienen. Lo importante es que hoy decidís volver.')}
+      ${body('Pasó una semana sin actividad y cerramos tu intento anterior. Tenés un nuevo intento listo para comenzar desde el <strong>Día 1</strong> cuando lo decidas.')}
+      ${body('Las respuestas y los hitos de tu intento anterior quedan conservados en su historial. El nuevo intento comienza con su propio progreso.')}
       ${btn('Empezar de nuevo', frontUrl + '/dashboard', C.teal)}
     `, C.teal)}
     ${spacer()}

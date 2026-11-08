@@ -17,7 +17,7 @@ async function registrarHistorial({ usuario_id, destinatario, tipo_correo, estad
   }
 }
 
-async function enviarCorreo({ usuario_id, destinatario, asunto, html, tipo_correo, meta = {} }) {
+async function enviarCorreo({ usuario_id, destinatario, asunto, html, tipo_correo, meta = {}, idempotencyKey }) {
   if (!process.env.RESEND_API_KEY) {
     console.error('[emailService] RESEND_API_KEY no configurada');
     await registrarHistorial({ usuario_id, destinatario, tipo_correo, estado: 'fallido', meta });
@@ -31,7 +31,7 @@ async function enviarCorreo({ usuario_id, destinatario, asunto, html, tipo_corre
     }
     const resend = new Resend(process.env.RESEND_API_KEY);
     const from = process.env.EMAIL_FROM;
-    const { data, error } = await resend.emails.send({ from, to: destinatario, subject: asunto, html });
+    const { data, error } = await resend.emails.send({ from, to: destinatario, subject: asunto, html }, idempotencyKey ? { idempotencyKey } : undefined);
     if (error) {
       console.error('[emailService] Error de Resend:', error.message);
       await registrarHistorial({ usuario_id, destinatario, tipo_correo, estado: 'fallido', meta });
@@ -77,12 +77,12 @@ async function enviarEnLote(usuarios, { tipo_correo, renderFn, skipFn }) {
       if (skipFn && await skipFn(u)) { saltados++; continue; }
       const { asunto, html, meta } = renderFn(u);
       const resultado = await enviarCorreo({
-        usuario_id: u._id || u.usuario_id,
+        usuario_id: u.usuario_id || u._id,
         destinatario: u.email,
         asunto,
         html,
         tipo_correo,
-        meta: meta || {}
+        meta: { ...(meta || {}), ...(u.plan_id ? { plan_id: String(u.plan_id) } : {}) }
       });
       if (resultado.success) {
         enviados++;
