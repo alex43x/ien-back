@@ -161,18 +161,18 @@ async function findPlanesParaAbandonar() {
 }
 
 /**
- * Planes activos con 7 a menos de 30 días de inactividad que avanzaron más
+ * Planes activos con 21 a menos de 30 días de inactividad que avanzaron más
  * allá del día 1. A partir de 30 días corresponde abandono.
  */
 async function findPlanesParaReiniciar(ahora = new Date()) {
   const diaMs = 86400000;
-  const hace7Dias = new Date(ahora.getTime() - 7 * diaMs);
+  const hace21Dias = new Date(ahora.getTime() - 21 * diaMs);
   const hace30Dias = new Date(ahora.getTime() - 30 * diaMs);
   return PlanProgreso.aggregate([
     {
       $match: {
         estado: 'activo',
-        ultima_fecha_actividad: { $gt: hace30Dias, $lte: hace7Dias },
+        ultima_fecha_actividad: { $gt: hace30Dias, $lte: hace21Dias },
         dia_actual: { $gt: 1 },
         $expr: actividadValida
       }

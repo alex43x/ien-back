@@ -62,7 +62,7 @@ test('guardar una racha vencida produce el mismo resultado antes o después del 
 });
 
 test('RIESGO: respuesta de pantalla anterior al reinicio se acepta como día 1', async () => {
-  const { uid, id } = await crear({ diasSinActividad: 8 });
+  const { uid, id } = await crear({ diasSinActividad: 22 });
   expect((await getProfile(uid)).dia_actual).toBe(7);
   await reiniciarPlanesYNotificar();
   expect((await completeDay(uid, respuesta)).dia_completado).toBe(1);
@@ -114,15 +114,15 @@ test('recordatorio excluye al usuario que ya completó hoy', async () => {
 });
 
 test('historial inválido se reporta sin reiniciar ni interrumpir el lote', async () => {
-  const { id } = await crear({ diasSinActividad: 8 });
+  const { id } = await crear({ diasSinActividad: 22 });
   await Plan.collection.updateOne({ _id: id }, { $set: { historial_reinicios: 'invalido' } });
   expect((await reiniciarPlanesYNotificar()).errores).toEqual([String(id)]);
   expect((await leer(id)).dia_actual).toBe(7);
 });
 
 test('un historial inválido no impide reiniciar otro plan del mismo lote', async () => {
-  const malo = await crear({ diasSinActividad: 8 });
-  const sano = await crear({ diasSinActividad: 8 });
+  const malo = await crear({ diasSinActividad: 22 });
+  const sano = await crear({ diasSinActividad: 22 });
   await Plan.collection.updateOne({ _id: malo.id }, { $set: { historial_reinicios: 'invalido' } });
   const res = await reiniciarPlanesYNotificar();
   expect(res).toMatchObject({ reiniciados: 1, errores: [String(malo.id)], total_candidatos: 2 });
@@ -260,7 +260,7 @@ test('tres ciclos completos de inactividad y vuelta preservan cada conjunto de r
   const { uid, id } = await crear({ dia: 1, racha: 0, diasSinActividad: 0 });
   for (let ciclo = 0; ciclo < 3; ciclo++) {
     await completeDay(uid, [{ id: 'texto', valor: `Ciclo ${ciclo}`, tipo: 'texto' }]);
-    reloj(Date.now() + 8 * DIA);
+    reloj(Date.now() + 22 * DIA);
     expect((await reiniciarPlanesYNotificar()).reiniciados).toBe(1);
     expect((await reiniciarPlanesYNotificar()).reiniciados).toBe(0);
     const plan = await leer(id);

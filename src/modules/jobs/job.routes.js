@@ -97,7 +97,7 @@ router.post('/send-activation-nudge', sendActivationNudge);
  * @swagger
  * /api/jobs/send-recovery:
  *   post:
- *     summary: Enviar correo de recuperación a usuarios inactivos por más de 7 días
+ *     summary: Enviar correo de recuperación a usuarios inactivos por 3+ días
  *     tags: [Jobs]
  *     security:
  *       - apiKeyAuth: []
@@ -149,7 +149,7 @@ router.post('/abandon-plans', abandonPlans);
  * @swagger
  * /api/jobs/restart-plans:
  *   post:
- *     summary: Reiniciar (reset parcial) planes sin actividad por 7+ días (día 1, racha 0) y notificar
+ *     summary: Reiniciar (reset parcial) planes sin actividad por 21+ días (día 1, racha 0) y notificar
  *     tags: [Jobs]
  *     security:
  *       - apiKeyAuth: []

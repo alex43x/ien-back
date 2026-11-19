@@ -101,7 +101,7 @@ async function abandonarPlanesYNotificar() {
 }
 
 /**
- * Reinicia (reset parcial) a los planes activos sin actividad por 7+ días y que
+ * Reinicia (reset parcial) a los planes activos sin actividad por 21+ días y que
  * ya avanzaron más allá del día 1: vuelve al Día 1 con la racha actual en 0 y el
  * progreso diario regenerado. Conserva racha_maxima e hitos_alcanzados y NO toca
  * ultima_fecha_actividad (así el reloj de 30 días del abandono sigue corriendo).

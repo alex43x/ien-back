@@ -36,7 +36,7 @@ async function crearPlan(cambios = {}) {
     tienda_id: new mongoose.Types.ObjectId(),
     codigo_utilizado: 'PRUEBA-REINICIO',
     fecha_inicio: new Date(Date.now() - 60 * DIA),
-    ultima_fecha_actividad: new Date(Date.now() - 8 * DIA),
+    ultima_fecha_actividad: new Date(Date.now() - 22 * DIA),
     dia_actual: 2,
     racha_dias: 1,
     racha_maxima: 7,
@@ -58,8 +58,9 @@ const completar = (auth, respuesta) => request(app).post('/api/plan/complete-day
   .set('Authorization', auth).send({ respuesta_usuario: respuesta });
 
 test.each([
-  [7 * DIA - 1, false, false],
-  [7 * DIA, true, false],
+  [7 * DIA, false, false],
+  [21 * DIA - 1, false, false],
+  [21 * DIA, true, false],
   [30 * DIA - 1, true, false],
   [30 * DIA, false, true],
   [30 * DIA + 1, false, true]
@@ -113,8 +114,8 @@ test('dos reinicios sucesivos conservan las respuestas de ambos recorridos, incl
 
   const segundaRespuesta = [{ id: 'reflexion', tipo: 'texto', valor: 'Segundo recorrido' }];
   expect((await completar(auth, segundaRespuesta)).status).toBe(200);
-  // Simula ocho días de inactividad después de completar el nuevo día 1.
-  await PlanProgreso.updateOne({ _id: id }, { $set: { ultima_fecha_actividad: new Date(Date.now() - 8 * DIA) } });
+  // Simula 22 días de inactividad después de completar el nuevo día 1.
+  await PlanProgreso.updateOne({ _id: id }, { $set: { ultima_fecha_actividad: new Date(Date.now() - 22 * DIA) } });
   expect((await reiniciarPlanesYNotificar()).reiniciados).toBe(1);
 
   const final = await leerPlan(id);

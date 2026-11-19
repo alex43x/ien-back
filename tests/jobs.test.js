@@ -306,7 +306,7 @@ describe('reiniciarPlanesYNotificar - reset parcial', () => {
   test('reinciia dia y racha, conserva racha_maxima/hitos y no toca ultima_fecha_actividad', async () => {
     const uid = new mongoose.Types.ObjectId();
     await Usuario.create({ _id: uid, nombre: 'A', email: 'a@test.com', password_hash: 'hash' });
-    const fechaVieja = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    const fechaVieja = new Date(Date.now() - 22 * 24 * 60 * 60 * 1000);
     await PlanProgreso.create({
       usuario_id: uid,
       tienda_id: new mongoose.Types.ObjectId(),
@@ -341,8 +341,8 @@ describe('reiniciarPlanesYNotificar - reset parcial', () => {
       codigo_utilizado: 'TEST-RST2',
       estado: 'activo',
       dia_actual: 1,
-      fecha_inicio: new Date(Date.now() - 9 * 86400000),
-      ultima_fecha_actividad: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+      fecha_inicio: new Date(Date.now() - 23 * 86400000),
+      ultima_fecha_actividad: new Date(Date.now() - 22 * 24 * 60 * 60 * 1000)
     });
 
     const res = await reiniciarPlanesYNotificar();
@@ -451,8 +451,8 @@ describe('run-daily - abandono antes que reinicio (AUD-04)', () => {
     }
   });
 
-  test('un plan con 8 días sin actividad se reinicia (no se abandona)', async () => {
-    const uid = await crearPlanInactivo(8);
+  test('un plan con 22 días sin actividad se reinicia (no se abandona)', async () => {
+    const uid = await crearPlanInactivo(22);
     const res = await request(app)
       .post('/api/jobs/run-daily')
       .set('X-Api-Key', process.env.CRON_API_KEY || 'test-api-key');
@@ -494,7 +494,7 @@ describe('run-daily - abandono antes que reinicio (AUD-04)', () => {
   });
 
   test('una actividad guardada después de seleccionar al candidato cancela el reinicio y el aviso', async () => {
-    const uid = await crearPlanInactivo(8);
+    const uid = await crearPlanInactivo(22);
     const { completeDay } = require('../src/modules/plan/plan.service');
     const update = PlanProgreso.findOneAndUpdate.bind(PlanProgreso);
     const spy = jest.spyOn(PlanProgreso, 'findOneAndUpdate').mockImplementationOnce(async (...args) => {
@@ -518,7 +518,7 @@ describe('run-daily - abandono antes que reinicio (AUD-04)', () => {
   });
 
   test('dos corridas concurrentes registran un solo reinicio', async () => {
-    const uid = await crearPlanInactivo(8);
+    const uid = await crearPlanInactivo(22);
     const resultados = await Promise.all([reiniciarPlanesYNotificar(), reiniciarPlanesYNotificar()]);
     expect(resultados.reduce((total, r) => total + r.reiniciados, 0)).toBe(1);
     const plan = await PlanProgreso.findOne({ usuario_id: uid }).select('+historial_reinicios').lean();
@@ -526,7 +526,7 @@ describe('run-daily - abandono antes que reinicio (AUD-04)', () => {
   });
 
   test('si el reinicio gana la carrera, un guardado ya en curso no modifica el día 1', async () => {
-    const uid = await crearPlanInactivo(8);
+    const uid = await crearPlanInactivo(22);
     const update = PlanProgreso.findOneAndUpdate.bind(PlanProgreso);
     const spy = jest.spyOn(PlanProgreso, 'findOneAndUpdate').mockImplementationOnce(async (...args) => {
       expect((await reiniciarPlanesYNotificar()).reiniciados).toBe(1);
