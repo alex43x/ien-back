@@ -1,3 +1,4 @@
+const { auditMutation, auditJob } = require('../auditoria/auditoria');
 const { demoledorDeRachas, findUsuariosRezagados, findUsuariosSinActivar, findUsuariosParaRecuperar, findPlanesParaAbandonar, findPlanesParaReiniciar } = require('./cronJobs');
 const PlanProgreso = require('../../models/PlanProgreso');
 const { archivarYReiniciar, filtroPlanSinCambios } = require('../plan/reinicios.service');
@@ -69,16 +70,28 @@ async function enviarRecoveryEmails() {
  * actividad por 30+ días, y notifica por correo a cada usuario.
  */
 async function abandonarPlanesYNotificar() {
-  const candidatos = await findPlanesParaAbandonar();
+  const ahora = new Date(Date.now());
+  const candidatos = await findPlanesParaAbandonar(ahora);
   if (candidatos.length === 0) return { abandonados: 0, notificados: 0, fallidos: 0 };
 
   const abandonados = [];
   for (const candidato of candidatos) {
-    const resultado = await PlanProgreso.updateOne(filtroPlanSinCambios(candidato), {
-      $set: { estado: 'abandonado' },
-      $inc: { __v: 1 }
-    });
-    if (resultado.modifiedCount) abandonados.push(candidato);
+    try {
+      const actualizado = await auditMutation('plan_abandonado', candidato, async session => {
+        const resultado = await PlanProgreso.updateOne(filtroPlanSinCambios(candidato), {
+          $set: { estado: 'abandonado' },
+          $inc: { __v: 1 }
+        }, { session });
+        if (!resultado.modifiedCount) return null;
+        return { ...candidato, _id: candidato.plan_id, estado: 'abandonado', __v: (candidato.__v ?? 0) + 1 };
+      }, {
+        motivo: 'inactividad', regla: 'abandono_30d_v1',
+        evaluado_en: ahora, umbral_hasta: new Date(+ahora - 30 * 86400000)
+      });
+      if (actualizado) abandonados.push(candidato);
+    } catch {
+      // Se sigue procesando el lote. El resumen de auditoría conserva el fallo.
+    }
   }
   if (!abandonados.length) {
     return { abandonados: 0, notificados: 0, fallidos: 0, total_candidatos: candidatos.length };
@@ -119,11 +132,13 @@ async function reiniciarPlanesYNotificar() {
   const errores = [];
   for (const c of candidatos) {
     try {
-      const plan = await archivarYReiniciar(c, 'inactividad', ahora);
+      const plan = await archivarYReiniciar(c, 'inactividad', ahora, {}, {
+        umbral_hasta: new Date(+ahora - 21 * 86400000),
+        umbral_desde: new Date(+ahora - 30 * 86400000)
+      });
       if (plan) reiniciadosEfectivos.push(c);
-    } catch (error) {
+    } catch {
       errores.push(String(c.plan_id));
-      console.error('[reiniciarPlanes] No se pudo archivar el plan', String(c.plan_id), error.message);
     }
   }
   const reiniciados = reiniciadosEfectivos.length;
@@ -150,10 +165,10 @@ async function reiniciarPlanesYNotificar() {
 
 module.exports = {
   demoledorDeRachas,
-  sendReminders,
+  sendReminders: () => auditJob('recordatorios', sendReminders),
   resetStreaksYNotificar,
-  enviarActivationNudges,
-  enviarRecoveryEmails,
-  abandonarPlanesYNotificar,
-  reiniciarPlanesYNotificar
+  enviarActivationNudges: () => auditJob('activacion', enviarActivationNudges),
+  enviarRecoveryEmails: () => auditJob('recuperacion', enviarRecoveryEmails),
+  abandonarPlanesYNotificar: () => auditJob('abandono', abandonarPlanesYNotificar),
+  reiniciarPlanesYNotificar: () => auditJob('reinicio', reiniciarPlanesYNotificar)
 };

@@ -2,8 +2,7 @@
  * Calcula el inicio del día calendario UTC de ayer (00:00:00.000 UTC).
  * Usado para identificar usuarios en riesgo de perder su racha.
  */
-function getInicioDeDiaDeAyer() {
-  const ahora = new Date();
+function getInicioDeDiaDeAyer(ahora = new Date()) {
   return new Date(Date.UTC(
     ahora.getUTCFullYear(),
     ahora.getUTCMonth(),

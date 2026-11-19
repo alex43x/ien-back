@@ -100,7 +100,7 @@ test.each(['activo', 'abandonado'])('si MongoDB rechaza el archivo, el plan %s c
     expect((await reiniciarPlanesYNotificar()).errores).toEqual([String(id)]);
   } else {
     const res = await request(app).get('/api/plan/profile').set('Authorization', auth);
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
   }
   expect(await PlanProgreso.collection.findOne({ _id: id })).toEqual(antes);
   expect(enviarEnLote).not.toHaveBeenCalled();

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { context } = require('../modules/auditoria/auditoria');
 const AppError = require('../utils/AppError');
 
 function authMiddleware(req, _res, next) {
@@ -12,6 +13,8 @@ function authMiddleware(req, _res, next) {
 
   try {
     req.usuario = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    const scope = context.getStore();
+    if (scope) scope.role = req.usuario.rol;
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {

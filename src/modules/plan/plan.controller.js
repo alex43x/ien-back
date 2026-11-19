@@ -35,6 +35,7 @@ exports.getTestInicial = tryCatch(async (req, res) => {
 
 exports.today = tryCatch(async (req, res) => {
   const result = await getToday(req.usuario.id);
+  res.locals.auditDetails = { actividad_disponible: Boolean(result.leccion) };
   res.json(result);
 });
 
@@ -52,6 +53,7 @@ exports.completeDay = tryCatch(async (req, res) => {
 exports.days = tryCatch(async (req, res) => {
   const soloCompletados = req.query.completados === 'true';
   const result = await getDays(req.usuario.id, soloCompletados);
+  res.locals.auditDetails = { solo_completados: soloCompletados, dias: result.dias.map(dia => dia.dia_numero) };
   res.json(result);
 });
 

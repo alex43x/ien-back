@@ -29,6 +29,7 @@ const diaProgresoSchema = new Schema({
 }, { _id: false });
 
 const reinicioSchema = new Schema({
+  referencia_auditoria: String,
   fecha: Date,
   motivo: String,
   estado: String,

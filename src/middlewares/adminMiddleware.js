@@ -1,3 +1,4 @@
+const { context } = require('../modules/auditoria/auditoria');
 const Usuario = require('../models/Usuario');
 const Tienda = require('../models/Tienda');
 const { tryCatch } = require('./errorHandler');
@@ -14,6 +15,8 @@ const adminMiddleware = tryCatch(async (req, _res, next) => {
   }
 
   req.usuario.rol = usuario.rol;
+  const scope = context.getStore();
+  if (scope) scope.role = usuario.rol;
   req.usuario.tienda_moderada = usuario.tienda_moderada;
 
   if (usuario.rol === 'moderador_tienda' && usuario.tienda_moderada) {

@@ -205,7 +205,7 @@ exports.login = async ({ email, password }) => {
   return { access_token, refresh_token, usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, grupo_id: usuario.grupo_id ?? null } };
 };
 
-exports.refreshToken = async (refreshTokenPlano) => {
+exports.refreshToken = async (refreshTokenPlano, onUser) => {
   if (typeof refreshTokenPlano !== 'string') {
     throw new AppError(400, 'Refresh token requerido');
   }
@@ -224,22 +224,24 @@ exports.refreshToken = async (refreshTokenPlano) => {
 
   const access_token = generarAccessToken({ _id: doc.usuario_id });
   const refresh_token = await generarRefreshToken(doc.usuario_id);
+  onUser?.(doc.usuario_id);
   return { access_token, refresh_token };
 };
 
-exports.logout = async (refreshTokenPlano) => {
+exports.logout = async (refreshTokenPlano, onUser) => {
   if (typeof refreshTokenPlano !== 'string') {
     throw new AppError(400, 'Refresh token requerido');
   }
 
   const token_hash = crypto.createHash('sha256').update(refreshTokenPlano).digest('hex');
   // SEG-04: revocación atómica (mismo patrón que refreshToken).
-  await RefreshToken.findOneAndUpdate(
+  const doc = await RefreshToken.findOneAndUpdate(
     { token_hash, revocado: false },
     { $set: { revocado: true } },
     { new: false }
   );
 
+  if (doc && doc.fecha_expiracion > new Date()) onUser?.(doc.usuario_id);
   return { mensaje: 'Sesión cerrada' };
 };
 

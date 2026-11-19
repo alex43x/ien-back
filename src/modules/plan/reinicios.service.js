@@ -1,3 +1,5 @@
+const { randomUUID } = require('node:crypto');
+const { auditMutation } = require('../auditoria/auditoria');
 const PlanProgreso = require('../../models/PlanProgreso');
 
 function filtroPlanSinCambios(plan) {
@@ -10,7 +12,7 @@ function filtroPlanSinCambios(plan) {
   };
 }
 
-function archivarYReiniciar(plan, motivo, ahora, cambios = {}) {
+function archivarYReiniciar(plan, motivo, ahora, cambios = {}, umbrales = {}) {
   const progresoVacio = Array.from({ length: 30 }, (_, i) => ({
     dia_numero: i + 1,
     completado: false,
@@ -19,11 +21,15 @@ function archivarYReiniciar(plan, motivo, ahora, cambios = {}) {
   }));
 
   // En una misma etapa, todas las expresiones leen el documento anterior.
-  return PlanProgreso.findOneAndUpdate(filtroPlanSinCambios(plan), [{
+  const referencia = randomUUID();
+  const esReactivacion = motivo === 'reactivacion';
+  const evento = esReactivacion ? 'plan_reactivado' : 'plan_reiniciado';
+  return auditMutation(evento, plan, session => PlanProgreso.findOneAndUpdate(filtroPlanSinCambios(plan), [{
     $set: {
       historial_reinicios: {
         $concatArrays: [{ $ifNull: ['$historial_reinicios', []] }, [{
           fecha: ahora,
+          referencia_auditoria: referencia,
           motivo,
           estado: '$estado',
           fecha_inicio: '$fecha_inicio',
@@ -42,7 +48,13 @@ function archivarYReiniciar(plan, motivo, ahora, cambios = {}) {
       __v: { $add: [{ $ifNull: ['$__v', 0] }, 1] },
       ...cambios
     }
-  }], { new: true });
+  }], { new: true, session }), {
+    motivo,
+    evaluado_en: ahora,
+    regla: esReactivacion ? 'reactivacion_v1' : 'inactividad_21d_v1',
+    referencia_historial: referencia,
+    ...umbrales
+  });
 }
 
 module.exports = { filtroPlanSinCambios, archivarYReiniciar };

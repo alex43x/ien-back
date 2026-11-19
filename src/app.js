@@ -18,6 +18,8 @@ const { getSwaggerSpec } = require('./config/swagger');
 const { errorHandler } = require('./middlewares/errorHandler');
 const { registrarTokensMorgan, FORMATO_PRODUCCION } = require('./utils/morganFormat');
 
+const { captureAudit } = require('./modules/auditoria/http');
+
 const app = express();
 
 // Cadena de proxies: Cliente -> Cloudflare -> ingress Northflank -> Nginx (ien-front) -> ingress -> backend.
@@ -43,9 +45,11 @@ app.use(cors({
 }));
 app.use(helmet());
 app.use(compression());
-app.use(express.json({ limit: '1mb' }));
+app.use(captureAudit);
 registrarTokensMorgan(morgan);
-app.use(morgan(process.env.NODE_ENV === 'production' ? FORMATO_PRODUCCION : 'dev'));
+const formatoLocal = ':method :url-sin-query :status :response-time ms - :res[content-length] solicitud=:solicitud-id';
+app.use(morgan(process.env.NODE_ENV === 'production' ? FORMATO_PRODUCCION : formatoLocal));
+app.use(express.json({ limit: '1mb' }));
 
 // Health check
 app.get('/health', (_req, res) => {

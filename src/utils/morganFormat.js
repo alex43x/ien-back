@@ -15,11 +15,12 @@ function sinQuery(valor) {
 }
 
 function registrarTokensMorgan(morgan) {
+  morgan.token('solicitud-id', req => req.auditRequestId);
   morgan.token('url-sin-query', (req) => sinQuery(req.originalUrl || req.url));
   morgan.token('referrer-sin-query', (req) => sinQuery(req.headers.referer || req.headers.referrer));
 }
 
 const FORMATO_PRODUCCION =
-  ':remote-addr - :remote-user [:date[clf]] ":method :url-sin-query HTTP/:http-version" :status :res[content-length] ":referrer-sin-query" ":user-agent"';
+  ':remote-addr - :remote-user [:date[clf]] ":method :url-sin-query HTTP/:http-version" :status :res[content-length] ":referrer-sin-query" ":user-agent" solicitud=:solicitud-id latencia_ms=:response-time[3]';
 
 module.exports = { sinQuery, registrarTokensMorgan, FORMATO_PRODUCCION };

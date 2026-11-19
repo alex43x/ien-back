@@ -1,3 +1,4 @@
+const { auditMutation, auditJob, progressFields } = require('../auditoria/auditoria');
 const PlanProgreso = require('../../models/PlanProgreso');
 const Usuario = require('../../models/Usuario');
 const { getInicioDeDiaDeAyer, getFechaHaceDias } = require('../../utils/fechas');
@@ -67,8 +68,8 @@ async function findUsuariosRezagados(horaUtcActual, minutoUtcActual) {
  * que completaron a las 23:59 UTC del día anterior dentro de la misma ventana.
  */
 async function demoledorDeRachas() {
-  const inicioDeDiaDeAyer = getInicioDeDiaDeAyer();
   const ahora = new Date();
+  const inicioDeDiaDeAyer = getInicioDeDiaDeAyer(ahora);
   const filtro = {
     estado: 'activo',
     ultima_fecha_actividad: { $lt: inicioDeDiaDeAyer },
@@ -78,17 +79,26 @@ async function demoledorDeRachas() {
 
   const planesAfectados = await PlanProgreso
     .find(filtro)
-    .select('usuario_id racha_dias estado dia_actual ultima_fecha_actividad __v')
+    .select(progressFields)
     .lean();
 
   const usuarios_afectados = [];
   for (const plan of planesAfectados) {
-    const resultado = await PlanProgreso.updateOne(filtroPlanSinCambios(plan), {
-      $set: { racha_dias: 0, racha_rota_en: ahora },
-      $inc: { __v: 1 }
-    });
-    if (resultado.modifiedCount) {
-      usuarios_afectados.push({ usuario_id: plan.usuario_id, racha_rota: plan.racha_dias });
+    try {
+      const actualizado = await auditMutation('racha_interrumpida', plan, async session => {
+        const resultado = await PlanProgreso.updateOne(filtroPlanSinCambios(plan), {
+          $set: { racha_dias: 0, racha_rota_en: ahora },
+          $inc: { __v: 1 }
+        }, { session });
+        if (!resultado.modifiedCount) return null;
+        return { ...plan, racha_dias: 0, __v: (plan.__v ?? 0) + 1 };
+      }, {
+        motivo: 'dia_sin_completar', regla: 'calendario_utc_v1',
+        evaluado_en: ahora, umbral_hasta: inicioDeDiaDeAyer
+      });
+      if (actualizado) usuarios_afectados.push({ usuario_id: plan.usuario_id, racha_rota: plan.racha_dias });
+    } catch {
+      // La transacción y el resumen del job registran el fallo sin exponer el plan.
     }
   }
 
@@ -137,8 +147,8 @@ async function findUsuariosParaRecuperar() {
  * Proyecta plan_id (id del plan), usuario_id (id real del usuario) y datos
  * del usuario para el correo de notificación.
  */
-async function findPlanesParaAbandonar() {
-  const hace30Dias = getFechaHaceDias(30);
+async function findPlanesParaAbandonar(ahora = new Date(Date.now())) {
+  const hace30Dias = new Date(+ahora - 30 * 86400000);
   return PlanProgreso.aggregate([
     { $match: { estado: 'activo', ultima_fecha_actividad: { $lte: hace30Dias }, $expr: actividadValida } },
     { $lookup: { from: 'usuarios', localField: 'usuario_id', foreignField: '_id', as: 'usuario' } },
@@ -153,6 +163,7 @@ async function findPlanesParaAbandonar() {
         usuario_id: 1,
         dia_actual: 1,
         racha_dias: 1,
+        racha_maxima: 1,
         nombre: '$usuario.nombre',
         email: '$usuario.email'
       }
@@ -189,6 +200,7 @@ async function findPlanesParaReiniciar(ahora = new Date()) {
         usuario_id: 1,
         dia_actual: 1,
         racha_dias: 1,
+        racha_maxima: 1,
         nombre: '$usuario.nombre',
         email: '$usuario.email'
       }
@@ -198,7 +210,7 @@ async function findPlanesParaReiniciar(ahora = new Date()) {
 
 module.exports = {
   findUsuariosRezagados,
-  demoledorDeRachas,
+  demoledorDeRachas: () => auditJob('racha', demoledorDeRachas),
   findUsuariosSinActivar,
   findUsuariosParaRecuperar,
   findPlanesParaAbandonar,

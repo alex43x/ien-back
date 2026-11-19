@@ -1,3 +1,4 @@
+const { auditJob } = require('../auditoria/auditoria');
 const { resetStreaksYNotificar, sendReminders, enviarActivationNudges, enviarRecoveryEmails, abandonarPlanesYNotificar, reiniciarPlanesYNotificar } = require('./job.service');
 const { tryCatch } = require('../../middlewares/errorHandler');
 const AppError = require('../../utils/AppError');
@@ -38,12 +39,15 @@ exports.runDaily = tryCatch(async (_req, res) => {
   // AUD-04: antes ambos corrían dentro del mismo Promise.all, sin orden real:
   // a veces el reinicio ganaba, borraba las respuestas y el paciente recibía
   // "plan reiniciado" y "plan abandonado" a la vez. Ahora son secuenciales.
-  const abandon = await abandonarPlanesYNotificar();
-  const restart = await reiniciarPlanesYNotificar();
-  const [reset, nudges, recovery] = await Promise.all([
-    resetStreaksYNotificar(),
-    enviarActivationNudges(),
-    enviarRecoveryEmails()
-  ]);
-  res.json({ abandon, restart, reset, nudges, recovery });
+  const result = await auditJob('diario', async () => {
+    const abandon = await abandonarPlanesYNotificar();
+    const restart = await reiniciarPlanesYNotificar();
+    const [reset, nudges, recovery] = await Promise.all([
+      resetStreaksYNotificar(),
+      enviarActivationNudges(),
+      enviarRecoveryEmails()
+    ]);
+    return { abandon, restart, reset, nudges, recovery };
+  });
+  res.json(result);
 });

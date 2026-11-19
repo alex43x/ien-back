@@ -1,3 +1,4 @@
+const { auditMutation, trackPlan } = require('../auditoria/auditoria');
 const Usuario = require('../../models/Usuario');
 const Tienda = require('../../models/Tienda');
 const PlanProgreso = require('../../models/PlanProgreso');
@@ -110,7 +111,7 @@ async function marcarDiaCompletado(plan, respuestaUsuario) {
   // Stage 1: marca el día via $map/$cond/$mergeObjects, actualiza fechas, incrementa racha/dia.
   // Stage 2: $max de racha_maxima contra $racha_dias (que ya es el valor post-incremento).
   // Todo en una sola operación atómica — no hay ventana entre $inc y $max.
-  const planActualizado = await PlanProgreso.findOneAndUpdate(
+  const planActualizado = await auditMutation('actividad_completada', plan, session => PlanProgreso.findOneAndUpdate(
     {
       ...filtroPlanSinCambios(plan),
       racha_dias: plan.racha_dias,
@@ -156,8 +157,14 @@ async function marcarDiaCompletado(plan, respuestaUsuario) {
         }
       }
     ],
-    { new: true }
-  );
+    { new: true, session }
+  ), {
+    dia_programa: plan.dia_actual,
+    motivo: continuidad ? 'continuidad' : 'racha_nueva',
+    regla: 'calendario_utc_v1',
+    evaluado_en: ahora,
+    umbral_desde: ayer
+  });
 
   if (!planActualizado) {
     throw new AppError(409, 'La actividad cambió. Actualizá la vista antes de continuar');
@@ -263,19 +270,20 @@ exports.setupTest = async ({ respuestas, usuarioId }) => {
     }
   }
 
-  const nuevoPlan = await PlanProgreso.create({
-    usuario_id: usuarioId,
-    tienda_id: tienda._id,
-    codigo_utilizado: usuario.codigo_activacion,
-    test_inicial: {
-      fecha_completado: new Date(),
-      respuestas: respuestasProcesadas,
-      puntuaciones_por_competencia,
-      competencias_a_mejorar
-    }
-  });
-
-  return nuevoPlan;
+  return auditMutation('plan_creado', null, async session => {
+    const plan = new PlanProgreso({
+      usuario_id: usuarioId,
+      tienda_id: tienda._id,
+      codigo_utilizado: usuario.codigo_activacion,
+      test_inicial: {
+        fecha_completado: new Date(),
+        respuestas: respuestasProcesadas,
+        puntuaciones_por_competencia,
+        competencias_a_mejorar
+      }
+    });
+    return plan.save({ session });
+  }, { motivo: 'plan_inicial' });
 };
 
 /**
@@ -320,14 +328,15 @@ exports.getTestInicial = async (usuarioId) => {
 exports.getToday = async (usuarioId) => {
   let plan = await PlanProgreso
     .findOne({ usuario_id: usuarioId, estado: 'activo' })
-    .select('dia_actual ultima_fecha_actividad progreso_diario')
+    .select('dia_actual ultima_fecha_actividad progreso_diario __v')
     .lean();
   if (!plan) {
     plan = await PlanProgreso
       .findOne({ usuario_id: usuarioId, estado: 'completado' })
-      .select('dia_actual ultima_fecha_actividad progreso_diario')
+      .select('dia_actual ultima_fecha_actividad progreso_diario __v')
       .lean();
     if (plan) {
+      trackPlan(plan);
       return {
         dia_actual: plan.dia_actual,
         completado: true,
@@ -344,6 +353,7 @@ exports.getToday = async (usuarioId) => {
     plan = plan.toObject();
   }
 
+  trackPlan(plan);
   const ahora = new Date();
   if (yaCompletoActividadHoy(plan, ahora)) {
     return {
@@ -397,6 +407,7 @@ exports.getProfile = async (usuarioId) => {
     }
   }
 
+  trackPlan(plan);
   return {
     dia_actual: plan.dia_actual,
     racha_dias: plan.racha_dias,
@@ -415,7 +426,7 @@ exports.getProfile = async (usuarioId) => {
 exports.completeDay = async (usuarioId, respuestaUsuario) => {
   const plan = await PlanProgreso
     .findOne({ usuario_id: usuarioId, estado: 'activo' })
-    .select('tienda_id estado dia_actual ultima_fecha_actividad progreso_diario racha_dias hitos_alcanzados __v')
+    .select('tienda_id estado dia_actual ultima_fecha_actividad progreso_diario racha_dias racha_maxima hitos_alcanzados __v')
     .populate('tienda_id', 'nombre_tienda')
     .lean();
   if (!plan) {
@@ -423,6 +434,7 @@ exports.completeDay = async (usuarioId, respuestaUsuario) => {
   }
 
   const conclusion = await getConclusionSiEsCierreDeBloque(plan.dia_actual);
+  trackPlan(plan);
   const { plan: planActualizado, hito_alcanzado } = await marcarDiaCompletado(plan, respuestaUsuario);
 
   if (hito_alcanzado !== null) {
@@ -476,6 +488,7 @@ exports.getDays = async (usuarioId, soloCompletados = false) => {
   }
   if (!plan) throw new AppError(404, 'No hay un plan activo');
 
+  trackPlan(plan);
   let dias = plan.progreso_diario;
   if (soloCompletados) dias = dias.filter(d => d.completado);
   if (dias.length === 0) return { dias: [] };

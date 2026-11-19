@@ -11,7 +11,7 @@
     "dev": "node --watch src/server.js",
     "seed": "node src/seed.js",
     "seed-content": "node src/seed.js --only-content",
-    "test": "jest --runInBand --forceExit"
+    "test": "node scripts/run-suite.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

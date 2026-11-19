@@ -52,6 +52,7 @@ exports.login = tryCatch(async (req, res) => {
   }
 
   const result = await login({ email, password });
+  res.locals.auditUser = { id: result.usuario.id, rol: result.usuario.rol };
 
   res.json(result);
 });
@@ -95,14 +96,14 @@ exports.refresh = tryCatch(async (req, res) => {
     throw new AppError(400, 'Refresh token requerido');
   }
 
-  const result = await refreshToken(refresh_token);
+  const result = await refreshToken(refresh_token, id => { res.locals.auditUser = { id }; });
   res.json(result);
 });
 
 exports.logout = tryCatch(async (req, res) => {
   const { refresh_token } = req.body;
 
-  const result = await logout(refresh_token);
+  const result = await logout(refresh_token, id => { res.locals.auditUser = { id }; });
   res.json(result);
 });
 
