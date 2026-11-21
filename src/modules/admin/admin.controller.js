@@ -6,6 +6,8 @@ const {
   getProgresoPaciente,
   getTestInicialPaciente,
   getActividadesPaciente,
+  listarPlanesPaciente,
+  detallePlanPaciente,
   getReporteUsuarios,
   getGraficaSemanal,
   listarPacientes,
@@ -44,6 +46,14 @@ exports.testInicialPaciente = tryCatch(async (req, res) => {
 exports.actividadesPaciente = tryCatch(async (req, res) => {
   const data = await getActividadesPaciente(req.params.usuarioId, req.tiendasPermitidas);
   res.json(data);
+});
+
+exports.planesPaciente = tryCatch(async (req, res) => {
+  res.json(await listarPlanesPaciente(req.params.usuarioId, req.tiendasPermitidas));
+});
+
+exports.detallePlanPaciente = tryCatch(async (req, res) => {
+  res.json(await detallePlanPaciente(req.params.usuarioId, req.params.planId, req.tiendasPermitidas));
 });
 
 exports.reporteUsuarios = tryCatch(async (req, res) => {

@@ -9,6 +9,8 @@ const {
   progresoPaciente,
   testInicialPaciente,
   actividadesPaciente,
+  planesPaciente,
+  detallePlanPaciente,
   listarPacientes,
   reporteUsuarios,
   graficaSemanal,
@@ -28,6 +30,11 @@ const router = Router();
 
 // Auth + verificar que es algún tipo de admin + scope
 router.use(authMiddleware, adminMiddleware, scopeTiendaMiddleware);
+
+// Todos los administradores ven únicamente los pacientes de su alcance.
+router.get('/pacientes/:usuarioId/planes', planesPaciente);
+router.get('/pacientes/:usuarioId/planes/:planId', detallePlanPaciente);
+router.use('/simulacion', require('./simulacion.routes'));
 
 // ── Crear moderador — accesible para admin_negocio Y admin_general ───────────
 // Debe declararse ANTES del requireRol global de abajo

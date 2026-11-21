@@ -171,6 +171,81 @@ exports.getActividadesPaciente = async (usuarioId, tiendasPermitidas) => {
   return { dias };
 };
 
+exports.listarPlanesPaciente = async (usuarioId, tiendasPermitidas) => {
+  await obtenerPacienteConScope(usuarioId, tiendasPermitidas);
+  const plan = await PlanProgreso.findOne({ usuario_id: usuarioId })
+    .sort({ fecha_inicio: -1, _id: -1 })
+    .select('tienda_id fecha_inicio estado dia_actual racha_dias racha_maxima +historial_reinicios')
+    .lean();
+  if (!plan || !enScope(plan.tienda_id, tiendasPermitidas)) return { planes: [] };
+  const historial = plan.historial_reinicios || [];
+  const anteriores = historial.map((intento, indice) => ({
+    id: `anterior-${indice}`,
+    tipo: 'anterior',
+    fecha_inicio: indice === 0 ? intento.fecha_inicio : historial[indice - 1].fecha,
+    fecha_cierre: intento.fecha,
+    motivo_cierre: intento.motivo,
+    estado: intento.estado,
+    dia_actual: intento.dia_actual,
+    racha_dias: intento.racha_dias,
+    racha_maxima: intento.racha_maxima,
+    dias_completados: (intento.progreso_diario || []).filter(dia => dia.completado).length
+  }));
+  return { planes: [...anteriores.reverse(), {
+    id: 'actual', tipo: 'actual', fecha_inicio: historial.at(-1)?.fecha ?? plan.fecha_inicio,
+    estado: plan.estado, dia_actual: plan.dia_actual, racha_dias: plan.racha_dias,
+    racha_maxima: plan.racha_maxima
+  }] };
+};
+
+exports.detallePlanPaciente = async (usuarioId, planId, tiendasPermitidas) => {
+  await obtenerPacienteConScope(usuarioId, tiendasPermitidas);
+  const plan = await PlanProgreso.findOne({ usuario_id: usuarioId })
+    .sort({ fecha_inicio: -1, _id: -1 })
+    .select('tienda_id fecha_inicio estado dia_actual racha_dias racha_maxima progreso_diario +historial_reinicios')
+    .lean();
+  if (!plan || !enScope(plan.tienda_id, tiendasPermitidas)) throw new AppError(404, 'Plan no encontrado');
+
+  let elegido;
+  if (planId === 'actual') {
+    elegido = { id: 'actual', tipo: 'actual', fecha_inicio: plan.historial_reinicios?.at(-1)?.fecha ?? plan.fecha_inicio,
+      estado: plan.estado, dia_actual: plan.dia_actual, racha_dias: plan.racha_dias,
+      racha_maxima: plan.racha_maxima, progreso_diario: plan.progreso_diario };
+  } else {
+    const match = /^anterior-(0|[1-9]\d*)$/.exec(planId);
+    const intento = match && plan.historial_reinicios?.[Number(match[1])];
+    if (!intento) throw new AppError(404, 'Plan no encontrado');
+    elegido = { id: planId, tipo: 'anterior',
+      fecha_inicio: Number(match[1]) === 0 ? intento.fecha_inicio : plan.historial_reinicios[Number(match[1]) - 1].fecha,
+      fecha_cierre: intento.fecha, motivo_cierre: intento.motivo, estado: intento.estado,
+      dia_actual: intento.dia_actual, racha_dias: intento.racha_dias,
+      racha_maxima: intento.racha_maxima, progreso_diario: intento.progreso_diario };
+  }
+
+  const completados = (elegido.progreso_diario || []).filter(dia => dia.completado);
+  const contenidos = await ContenidoDiario.find({ dia_numero: { $in: completados.map(dia => dia.dia_numero) } })
+    .select('dia_numero titulo_modulo tipo_contenido emociones_objetivo respuesta_tipo datos_leccion')
+    .lean();
+  const porDia = new Map(contenidos.map(contenido => [contenido.dia_numero, contenido]));
+  return { ...elegido, dias: completados.map(dia => {
+    const contenido = porDia.get(dia.dia_numero);
+    return {
+      dia_numero: dia.dia_numero,
+      completado: true,
+      fecha_completado: dia.fecha_completado,
+      respuesta_usuario: dia.respuesta_usuario ?? null,
+      leccion: contenido ? {
+        titulo: contenido.titulo_modulo,
+        tipo: contenido.tipo_contenido,
+        emociones_objetivo: contenido.emociones_objetivo,
+        respuesta_tipo: contenido.respuesta_tipo,
+        campos_respuesta: mapearCamposRespuesta(contenido.datos_leccion?.ejercicio?.pasos),
+        datos_leccion: contenido.datos_leccion
+      } : null
+    };
+  }) };
+};
+
 // ─── Reportes ─────────────────────────────────────────────────────────────────
 
 exports.getReporteUsuarios = async (tiendasPermitidas) => {
