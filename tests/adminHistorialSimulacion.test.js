@@ -35,6 +35,7 @@ test('historial muestra únicamente días completados y respeta el alcance de ti
   expect(list.body.planes.map(p => p.id)).toEqual(['anterior-0', 'actual']);
   const detail = await request(app).get(`${url}/anterior-0`).set(headers);
   expect(detail.status).toBe(200);
+  expect(detail.body).not.toHaveProperty('progreso_diario');
   expect(detail.body.dias).toHaveLength(1);
   expect(detail.body.dias[0].respuesta_usuario.valor).toBe('Guardada');
   expect(detail.body.dias[0].leccion.titulo).toBe('Inicio');

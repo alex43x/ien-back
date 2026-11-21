@@ -175,7 +175,7 @@ exports.listarPlanesPaciente = async (usuarioId, tiendasPermitidas) => {
   await obtenerPacienteConScope(usuarioId, tiendasPermitidas);
   const plan = await PlanProgreso.findOne({ usuario_id: usuarioId })
     .sort({ fecha_inicio: -1, _id: -1 })
-    .select('tienda_id fecha_inicio estado dia_actual racha_dias racha_maxima +historial_reinicios')
+    .select('tienda_id fecha_inicio estado dia_actual racha_dias racha_maxima progreso_diario +historial_reinicios')
     .lean();
   if (!plan || !enScope(plan.tienda_id, tiendasPermitidas)) return { planes: [] };
   const historial = plan.historial_reinicios || [];
@@ -194,7 +194,8 @@ exports.listarPlanesPaciente = async (usuarioId, tiendasPermitidas) => {
   return { planes: [...anteriores.reverse(), {
     id: 'actual', tipo: 'actual', fecha_inicio: historial.at(-1)?.fecha ?? plan.fecha_inicio,
     estado: plan.estado, dia_actual: plan.dia_actual, racha_dias: plan.racha_dias,
-    racha_maxima: plan.racha_maxima
+    racha_maxima: plan.racha_maxima,
+    dias_completados: (plan.progreso_diario || []).filter(dia => dia.completado).length
   }] };
 };
 
@@ -227,7 +228,8 @@ exports.detallePlanPaciente = async (usuarioId, planId, tiendasPermitidas) => {
     .select('dia_numero titulo_modulo tipo_contenido emociones_objetivo respuesta_tipo datos_leccion')
     .lean();
   const porDia = new Map(contenidos.map(contenido => [contenido.dia_numero, contenido]));
-  return { ...elegido, dias: completados.map(dia => {
+  const { progreso_diario, ...resumen } = elegido;
+  return { ...resumen, dias: completados.map(dia => {
     const contenido = porDia.get(dia.dia_numero);
     return {
       dia_numero: dia.dia_numero,
