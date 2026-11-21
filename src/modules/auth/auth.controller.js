@@ -37,6 +37,7 @@ exports.register = tryCatch(async (req, res) => {
 
   const result = await register({ nombre, email, password, codigo_activacion, hora_recordatorio, minuto_recordatorio });
 
+  res.locals.auditUser = { id: result.usuario.id, rol: result.usuario.rol };
   res.status(201).json(result);
 });
 

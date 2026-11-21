@@ -1,5 +1,7 @@
 # Auditoría interna del programa
 
+Esta guía describe el modo transaccional. Para la base de producción actual en `admin`, seguir el [procedimiento operativo del README](README.md#auditoría-de-rachas-en-northflank).
+
 La auditoría empieza cuando se activa este backend y conserva 180 días de eventos. Guarda los cambios del plan y su evidencia en una transacción. Los eventos de autenticación y lectura son de mejor esfuerzo. Una lectura de un plan abandonado que provoca una reactivación sí requiere evidencia atómica. El calendario UTC y las reglas de inactividad siguen siendo los del programa.
 
 ## Antes de desplegar

@@ -2,6 +2,15 @@ const { randomUUID } = require('node:crypto');
 const { actor, context, observe } = require('./auditoria');
 
 const routes = new Map([
+  ['POST /api/auth/register', 'registro_cuenta'],
+  ['POST /api/auth/reminder-schedule', 'horario_recordatorio'],
+  ['GET /api/plan/bienvenida', 'bienvenida_consultada'],
+  ['GET /api/plan/test-preguntas', 'preguntas_consultadas'],
+  ['GET /api/plan/test-inicial', 'resultado_test_consultado'],
+  ['POST /api/plan/setup-test', 'envio_test_inicial'],
+  ['POST /api/plan/testing/advance', 'avance_manual_solicitado'],
+  ['POST /api/plan/testing/retreat', 'retroceso_manual_solicitado'],
+  ['POST /api/plan/testing/autocomplete-test', 'autocompletar_test_solicitado'],
   ['POST /api/auth/login', 'login'],
   ['POST /api/auth/refresh', 'renovacion'],
   ['POST /api/auth/logout', 'logout'],
@@ -14,6 +23,7 @@ const routes = new Map([
 
 function reason(status, event) {
   if (status === 401 || status === 403) return event === 'login' ? 'credenciales_rechazadas' : 'sesion_rechazada';
+  if (status === 410) return 'control_deshabilitado';
   if (status === 404) return 'no_encontrado';
   if (status === 409) return 'conflicto';
   if (status === 429) return 'limite';
@@ -48,7 +58,7 @@ function captureAudit(req, res, next) {
         ...(status < 400 && res.locals.auditDetails),
         evento: event || 'solicitud_plan_rechazada',
         resultado: outcome(status, req.method),
-        motivo: status >= 400 ? reason(status, event) : undefined,
+        motivo: status >= 400 ? (scope.rechazoGuardado || reason(status, event)) : undefined,
         estado_http: status
       }));
     });

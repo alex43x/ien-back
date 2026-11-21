@@ -85,7 +85,12 @@ async function demoledorDeRachas() {
   const usuarios_afectados = [];
   for (const plan of planesAfectados) {
     try {
-      const actualizado = await auditMutation('racha_interrumpida', plan, async session => {
+      const actualizado = await auditMutation('racha_interrumpida', plan, async (session, stages = []) => {
+        if (stages.length) {
+          return PlanProgreso.findOneAndUpdate(filtroPlanSinCambios(plan), [{ $set: {
+            racha_dias: 0, racha_rota_en: ahora, __v: { $add: [{ $ifNull: ['$__v', 0] }, 1] }
+          } }, ...stages], { new: true }).select(progressFields + ' +auditoria_pendiente');
+        }
         const resultado = await PlanProgreso.updateOne(filtroPlanSinCambios(plan), {
           $set: { racha_dias: 0, racha_rota_en: ahora },
           $inc: { __v: 1 }

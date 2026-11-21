@@ -28,6 +28,8 @@ mongoose
       }
       await verifyStorage(mongoose.connection.db, mongoose.connection.getClient());
     }
+    const { operational, startDrain } = require('./modules/auditoria/operativa');
+    if (operational()) startDrain(mongoose.connection.db);
     console.log('Connected to MongoDB');
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

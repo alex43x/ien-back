@@ -8,7 +8,7 @@ async function main() {
   const client = new mongo.MongoClient(process.env.AUDIT_MAINTENANCE_URI, { timeoutMS: 10000 });
   try {
     await provision(client.db());
-    console.log('Colección, validación e índices de auditoría preparados.');
+    console.log('Almacenamiento e índices de auditoría preparados.');
   } finally {
     await client.close();
   }

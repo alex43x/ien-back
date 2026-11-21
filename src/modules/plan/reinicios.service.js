@@ -24,7 +24,7 @@ function archivarYReiniciar(plan, motivo, ahora, cambios = {}, umbrales = {}) {
   const referencia = randomUUID();
   const esReactivacion = motivo === 'reactivacion';
   const evento = esReactivacion ? 'plan_reactivado' : 'plan_reiniciado';
-  return auditMutation(evento, plan, session => PlanProgreso.findOneAndUpdate(filtroPlanSinCambios(plan), [{
+  return auditMutation(evento, plan, (session, stages = []) => PlanProgreso.findOneAndUpdate(filtroPlanSinCambios(plan), [{
     $set: {
       historial_reinicios: {
         $concatArrays: [{ $ifNull: ['$historial_reinicios', []] }, [{
@@ -48,7 +48,7 @@ function archivarYReiniciar(plan, motivo, ahora, cambios = {}, umbrales = {}) {
       __v: { $add: [{ $ifNull: ['$__v', 0] }, 1] },
       ...cambios
     }
-  }], { new: true, session }), {
+  }, ...stages], { new: true, session, ...(stages.length && { projection: { '+auditoria_pendiente': 1 } }) }), {
     motivo,
     evaluado_en: ahora,
     regla: esReactivacion ? 'reactivacion_v1' : 'inactividad_21d_v1',

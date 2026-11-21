@@ -1,4 +1,4 @@
-const { auditMutation, trackPlan } = require('../auditoria/auditoria');
+const { auditMutation, trackPlan, context } = require('../auditoria/auditoria');
 const Usuario = require('../../models/Usuario');
 const Tienda = require('../../models/Tienda');
 const PlanProgreso = require('../../models/PlanProgreso');
@@ -99,6 +99,8 @@ async function marcarDiaCompletado(plan, respuestaUsuario) {
 
   // LIMITACIÓN CONOCIDA: Comparación de día calendario en UTC.
   if (yaCompletoActividadHoy(plan, ahora)) {
+    const scope = context.getStore();
+    if (scope) scope.rechazoGuardado = 'completado_hoy';
     throw new AppError(409, 'Ya completaste la actividad de hoy');
   }
 
@@ -111,7 +113,7 @@ async function marcarDiaCompletado(plan, respuestaUsuario) {
   // Stage 1: marca el día via $map/$cond/$mergeObjects, actualiza fechas, incrementa racha/dia.
   // Stage 2: $max de racha_maxima contra $racha_dias (que ya es el valor post-incremento).
   // Todo en una sola operación atómica — no hay ventana entre $inc y $max.
-  const planActualizado = await auditMutation('actividad_completada', plan, session => PlanProgreso.findOneAndUpdate(
+  const planActualizado = await auditMutation('actividad_completada', plan, (session, stages = []) => PlanProgreso.findOneAndUpdate(
     {
       ...filtroPlanSinCambios(plan),
       racha_dias: plan.racha_dias,
@@ -155,9 +157,10 @@ async function marcarDiaCompletado(plan, respuestaUsuario) {
             hitos_alcanzados: { $concatArrays: [{ $ifNull: ['$hitos_alcanzados', []] }, [hito_alcanzado]] }
           })
         }
-      }
+      },
+      ...stages
     ],
-    { new: true, session }
+    { new: true, session, ...(stages.length && { projection: { '+auditoria_pendiente': 1 } }) }
   ), {
     dia_programa: plan.dia_actual,
     motivo: continuidad ? 'continuidad' : 'racha_nueva',
@@ -167,6 +170,8 @@ async function marcarDiaCompletado(plan, respuestaUsuario) {
   });
 
   if (!planActualizado) {
+    const scope = context.getStore();
+    if (scope) scope.rechazoGuardado = 'plan_cambio';
     throw new AppError(409, 'La actividad cambió. Actualizá la vista antes de continuar');
   }
 
@@ -426,7 +431,7 @@ exports.getProfile = async (usuarioId) => {
 exports.completeDay = async (usuarioId, respuestaUsuario) => {
   const plan = await PlanProgreso
     .findOne({ usuario_id: usuarioId, estado: 'activo' })
-    .select('tienda_id estado dia_actual ultima_fecha_actividad progreso_diario racha_dias racha_maxima hitos_alcanzados __v')
+    .select('usuario_id tienda_id estado dia_actual ultima_fecha_actividad progreso_diario racha_dias racha_maxima hitos_alcanzados __v')
     .populate('tienda_id', 'nombre_tienda')
     .lean();
   if (!plan) {

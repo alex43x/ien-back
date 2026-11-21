@@ -3,6 +3,9 @@ const { mongo } = require('mongoose');
 const collectionName = 'eventos_auditoria';
 const retentionMs = 180 * 86400000;
 const eventTypes = [
+  'registro_cuenta', 'horario_recordatorio', 'bienvenida_consultada', 'preguntas_consultadas',
+  'resultado_test_consultado', 'envio_test_inicial', 'avance_manual_solicitado', 'retroceso_manual_solicitado', 'autocompletar_test_solicitado',
+  'guardado_recibido',
   'login', 'renovacion', 'logout', 'perfil_auth', 'perfil_programa', 'actividad_consultada',
   'lista_consultada', 'guardado_rechazado', 'solicitud_plan_rechazada', 'plan_creado',
   'actividad_completada', 'racha_interrumpida', 'plan_reiniciado', 'plan_abandonado',
@@ -10,6 +13,7 @@ const eventTypes = [
 ];
 const results = ['confirmado', 'rechazado', 'error', 'solicitado', 'sin_cambios', 'parcial'];
 const reasons = [
+  'completado_hoy', 'plan_cambio', 'control_deshabilitado',
   'sesion_rechazada', 'credenciales_rechazadas', 'entrada_invalida', 'conflicto',
   'no_encontrado', 'limite', 'fallo_interno', 'inactividad', 'reactivacion',
   'dia_sin_completar', 'continuidad', 'racha_nueva', 'plan_inicial'
@@ -43,7 +47,7 @@ const validator = {
       version_backend: { bsonType: 'string', pattern: '^[a-zA-Z0-9._-]{1,64}$' },
       regla: { enum: ['calendario_utc_v1', 'inactividad_21d_v1', 'abandono_30d_v1', 'reactivacion_v1'] },
       evaluado_en: date, umbral_hasta: date, umbral_desde: date,
-      anterior: state, posterior: state, dia_programa: day,
+      perfil_consultado: state, completado_hoy: { bsonType: 'bool' }, anterior: state, posterior: state, dia_programa: day,
       dias: { bsonType: 'array', maxItems: 30, items: day },
       solo_completados: { bsonType: 'bool' }, actividad_disponible: { bsonType: 'bool' },
       estado_http: { ...number, minimum: 100, maximum: 599 },
@@ -68,4 +72,28 @@ function asObjectId(value) {
   return undefined;
 }
 
-module.exports = { collectionName, retentionMs, eventTypes, validator, indexes, asObjectId, uuidPattern };
+// MongoDB no admite validadores de colección en admin. Usar el mismo esquema
+// para comprobar los eventos que escribe el backend en esa base.
+function matches(value, rule) {
+  if (rule.enum) return rule.enum.includes(value);
+  switch (rule.bsonType) {
+    case 'object':
+      return value != null && typeof value === 'object' && !Array.isArray(value)
+        && (rule.required || []).every(key => Object.hasOwn(value, key))
+        && Object.keys(value).every(key => Object.hasOwn(rule.properties, key) && matches(value[key], rule.properties[key]));
+    case 'array': return Array.isArray(value) && value.length <= rule.maxItems && value.every(item => matches(item, rule.items));
+    case 'date': return value instanceof Date && Number.isFinite(+value);
+    case 'objectId': return value instanceof mongo.ObjectId;
+    case 'int': return Number.isInteger(value) && value >= rule.minimum && value <= (rule.maximum ?? 2147483647);
+    case 'bool': return typeof value === 'boolean';
+    case 'string': return typeof value === 'string' && new RegExp(rule.pattern).test(value);
+    default: return false;
+  }
+}
+
+function validateEvent(event) {
+  if (!matches(event, validator.$jsonSchema)) throw new Error('Evento de auditoría inválido');
+  return event;
+}
+
+module.exports = { validateEvent, collectionName, retentionMs, eventTypes, validator, indexes, asObjectId, uuidPattern };

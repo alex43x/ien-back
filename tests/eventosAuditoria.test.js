@@ -57,7 +57,10 @@ test('solo confirma una actividad en paralelo y vincula estados sin copiar respu
   await waitForObservations();
 
   const events = await collection().find({ usuario_id: user._id }).toArray();
-  expect(events).toHaveLength(2);
+  expect(events).toHaveLength(4);
+  const attempts = events.filter(e => e.evento === 'guardado_recibido');
+  expect(attempts).toHaveLength(2);
+  expect(attempts.map(e => e.solicitud_id).sort()).toEqual(events.filter(e => e.evento !== 'guardado_recibido').map(e => e.solicitud_id).sort());
   const saved = events.find(e => e.evento === 'actividad_completada');
   expect(saved).toMatchObject({
     resultado: 'confirmado', dia_programa: 7, anterior: { dia_actual: 7, racha_dias: 6, version: 0 },
@@ -65,7 +68,7 @@ test('solo confirma una actividad en paralelo y vincula estados sin copiar respu
   });
   expect(+saved.vence_en - +saved.fecha).toBe(retentionMs);
   expect(JSON.stringify(events)).not.toMatch(/RESPUESTA_PRIVADA|solicitud-inventada|Bearer/);
-  expect(events.find(e => e.evento === 'guardado_rechazado')).toMatchObject({ resultado: 'rechazado', motivo: 'conflicto' });
+  expect(events.find(e => e.evento === 'guardado_rechazado')).toMatchObject({ resultado: 'rechazado', motivo: expect.stringMatching(/^(plan_cambio|completado_hoy)$/) });
 });
 
 test('un fallo real de validación al insertar el evento revierte el progreso', async () => {
@@ -176,4 +179,16 @@ test('la CLI valida fechas, usuario, zona y tipo antes de construir la consulta'
   expect(() => parseQuery([...args, '--evento', '{"$ne":null}'])).toThrow();
   expect(() => parseQuery([...args, '--cursor', '2026-11-17T00:00:00.000Z/$where'])).toThrow();
   expect(() => parseQuery([...args, '--zona', 'no-valida'])).toThrow();
+});
+
+test('distingue consulta del test, envío incompleto e intento de salto', async () => {
+  const { user, bearer } = await fixture();
+  await request(app).get('/api/plan/test-preguntas').set('Authorization', bearer);
+  await request(app).post('/api/plan/setup-test').set('Authorization', bearer).send({ dato: 'MARCA_PRIVADA' });
+  await request(app).post('/api/plan/testing/advance').set('Authorization', bearer);
+  await waitForObservations();
+  const events = await collection().find({ usuario_id: user._id }).toArray();
+  expect(events.map(e => e.evento)).toEqual(expect.arrayContaining(['preguntas_consultadas', 'envio_test_inicial', 'avance_manual_solicitado']));
+  expect(events.find(e => e.evento === 'avance_manual_solicitado').resultado).toBe('rechazado');
+  expect(JSON.stringify(events)).not.toContain('MARCA_PRIVADA');
 });

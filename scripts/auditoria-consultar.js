@@ -76,7 +76,8 @@ async function main() {
     }
     console.table(events.map(e => ({
       fecha: query.format.format(e.fecha), evento: e.evento, resultado: e.resultado,
-      dia: e.dia_programa ?? e.dias?.join(',') ?? '',
+      dia: e.dia_programa ?? e.perfil_consultado?.dia_actual ?? e.dias?.join(',') ?? '',
+      racha_perfil: e.perfil_consultado?.racha_dias ?? '', completado_hoy: e.completado_hoy ?? '',
       motivo: e.motivo ?? '', secuencia: e.anterior && e.posterior
         ? e.anterior.dia_actual + '→' + e.posterior.dia_actual + ' / racha ' + e.anterior.racha_dias + '→' + e.posterior.racha_dias
         : '',

@@ -1,5 +1,6 @@
 const { setupTest, getTestInicial, getToday, getProfile, completeDay, advanceDay, retreatDay, autocompleteTest, getDays, getTestPreguntas, getBienvenida } = require('./plan.service');
 const { tryCatch } = require('../../middlewares/errorHandler');
+const { observe, actor } = require('../auditoria/auditoria');
 const AppError = require('../../utils/AppError');
 
 exports.getTestPreguntas = tryCatch(async (req, res) => {
@@ -41,11 +42,16 @@ exports.today = tryCatch(async (req, res) => {
 
 exports.profile = tryCatch(async (req, res) => {
   const result = await getProfile(req.usuario.id);
+  res.locals.auditDetails = {
+    perfil_consultado: { dia_actual: result.dia_actual, racha_dias: result.racha_dias, estado: result.estado },
+    completado_hoy: result.actividad_completada_hoy
+  };
   res.json(result);
 });
 
 exports.completeDay = tryCatch(async (req, res) => {
   const { respuesta_usuario } = req.body;
+  void observe({ ...actor(req.usuario.id, req.usuario.rol), evento: 'guardado_recibido', resultado: 'solicitado' });
   const result = await completeDay(req.usuario.id, respuesta_usuario);
   res.json(result);
 });

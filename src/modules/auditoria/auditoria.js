@@ -2,7 +2,10 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 const { randomUUID } = require('node:crypto');
 const mongoose = require('mongoose');
 const AppError = require('../../utils/AppError');
-const { collectionName, retentionMs, asObjectId } = require('./schema');
+const { collectionName, retentionMs, asObjectId, validateEvent } = require('./schema');
+
+const { operational, appendStage, limit } = require('./operativa');
+const critical = new Set(['actividad_completada', 'racha_interrumpida', 'plan_reiniciado', 'plan_reactivado']);
 
 const context = new AsyncLocalStorage();
 const version = process.env.AUDIT_BUILD_VERSION || require('../../../package.json').version;
@@ -67,7 +70,7 @@ function observe(fields) {
   }
   pending++;
   const promise = Promise.resolve()
-    .then(() => collection().insertOne(record(fields), { timeoutMS: 750, writeConcern: { w: 'majority' } }))
+    .then(() => collection().insertOne(validateEvent(record(fields)), { timeoutMS: 750, writeConcern: { w: 'majority' } }))
     .catch(() => reportLoss('escritura'))
     .finally(() => { pending--; pendingEvents.delete(promise); });
   pendingEvents.add(promise);
@@ -77,10 +80,10 @@ function observe(fields) {
 function captureProgress(plan) {
   if (!plan) return undefined;
   const { dia_actual, estado, racha_dias, racha_maxima, ultima_fecha_actividad } = plan;
-  return {
+  return Object.fromEntries(Object.entries({
     dia_actual, estado, racha_dias, racha_maxima, version: plan.__v,
     ultima_fecha_actividad: ultima_fecha_actividad instanceof Date ? ultima_fecha_actividad : undefined
-  };
+  }).filter(([, value]) => value !== undefined));
 }
 
 const progressFields = 'usuario_id dia_actual estado racha_dias racha_maxima ultima_fecha_actividad __v';
@@ -92,6 +95,29 @@ async function auditMutation(evento, before, mutate, details = {}) {
   const base = record({ evento, resultado: 'confirmado', ...details });
   if (ctx?.counts) ctx.counts.candidatos++;
   try {
+    if (operational()) {
+      const durable = critical.has(evento);
+      const userId = asObjectId(before?.usuario_id);
+      const event = {
+        ...base, ...(ctx?.job ? { usuario_id: userId } : actor(userId, ctx?.role)),
+        plan_id: asObjectId(before?._id ?? before?.plan_id),
+        ...(before && { anterior: captureProgress(before) })
+      };
+      const result = await mutate(undefined, durable ? [appendStage(event)] : []);
+      if (ctx?.counts) ctx.counts[result ? 'confirmados' : 'conflictos']++;
+      if (!result) return null;
+      if (durable) {
+        const pending = result.get('auditoria_pendiente');
+        if (!pending?.some(item => item._id === event._id)) reportLoss('limite');
+        else if (pending.length >= limit - 2) console.warn('auditoria_pendientes_altos');
+        // El campo se seleccionó sólo para comprobar el límite. No serializarlo.
+        delete result._doc.auditoria_pendiente;
+      } else {
+        void observe({ ...event, plan_id: result._id, usuario_id: result.usuario_id,
+          ...(!ctx?.job && actor(result.usuario_id, ctx?.role)), posterior: captureProgress(result) });
+      }
+      return result;
+    }
     const result = await mongoose.connection.getClient().withSession(session =>
       session.withTransaction(async () => {
         const after = await mutate(session);

@@ -56,6 +56,7 @@ const planProgresoSchema = new Schema({
   ultima_fecha_actividad: { type: Date, default: Date.now },
   estado: { type: String, enum: ['activo', 'completado', 'abandonado'], default: 'activo' },
   test_inicial: testInicialSchema,
+  auditoria_pendiente: { type: [Schema.Types.Mixed], select: false, default: undefined },
   historial_reinicios: { type: [reinicioSchema], select: false, default: undefined },
   progreso_diario: {
     type: [diaProgresoSchema],

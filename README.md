@@ -47,6 +47,28 @@ CRON_API_KEY=tu_api_key_cron
 | `JWT_SECRET` | Secreto para firmar tokens JWT |
 | `CRON_API_KEY` | API Key para endpoints internos (cron jobs) |
 
+## Auditoría de rachas en Northflank
+
+El backend admite dos modos. El modo transaccional sigue siendo el predeterminado. Para la base de aplicación actual en `admin`, configurar explícitamente `AUDIT_MODE=operativa`. MongoDB excluye `admin` de las transacciones multidocumento.
+
+En modo operativo, completar un día, romper una racha, reiniciar y reactivar un plan guardan el cambio y su evento en una escritura del mismo documento. El backend copia los pendientes a `eventos_auditoria` al arrancar y cada 30 segundos después de terminar la pasada anterior. Comprueba las copias repetidas antes de retirar cada pendiente. Las lecturas, los eventos de sesión, el alta y el abandono de planes se registran por separado y pueden perderse. La consulta es interna y la colección aplica una retención de 180 días mediante TTL. Quien tenga credenciales con permisos amplios puede modificar los registros.
+
+Cada plan admite 16 pendientes. Desde 14 se emite `auditoria_pendientes_altos`. Si se llena, el usuario sigue avanzando, se conservan los pendientes anteriores y se suma una pérdida al contador de límites en `auditoria_perdidas`. Alertar también por `auditoria_copia_pendiente` y por eventos inválidos o distintos (`auditoria_evento_invalido`, `auditoria_copia_no_coincide`). Estos avisos no incluyen identidades ni respuestas. Para determinar si una consulta puede estar incompleta, un operador con acceso privado puede contar los planes pendientes con `db.planes_progreso.countDocuments({"auditoria_pendiente.0._id": {$exists: true}})`.
+
+### Reconstruir una incidencia
+
+Consultar por usuario y rango de fechas con la CLI de auditoría. Un mismo `solicitud_id` vincula el guardado recibido con su confirmación o rechazo. `completado_hoy` indica un segundo envío para el mismo día UTC y `plan_cambio` indica que el plan ya no coincidía al escribir. Un intento sin desenlace visible queda indeterminado. El perfil registra el día, la racha y el estado que calculó el servidor. La lista registra los números de día incluidos en la respuesta; puede incluir varios y no acredita que se haya leído cada uno.
+
+También se registran el alta de cuenta, el cambio de horario de recordatorio, las consultas de bienvenida, preguntas y resultados del test, el envío del test y las solicitudes de avance, retroceso y autocompletado manual. El resultado y el estado HTTP distinguen solicitudes aceptadas y rechazadas. Estas observaciones van directamente al historial con entrega de mejor esfuerzo. Solo se asocian a una cuenta cuando el servidor conoce su identidad. El seguimiento empieza con el despliegue de esta versión.
+
+### Activación y reversión
+
+1. Probar con un replica set descartable y una base de aplicación llamada `admin`. Comprobar en el destino la base real de `MONGO_URI`, la disponibilidad del respaldo, los permisos efectivos de la cuenta de servicio y la versión desplegada para poder volver a ella.
+2. Pausar los jobs durante el cambio. En un proceso de mantenimiento, usar `AUDIT_MODE=operativa` y una `AUDIT_MAINTENANCE_URI` que seleccione la misma base de aplicación. Ejecutar `node scripts/auditoria-db.js preparar`. Esto prepara la colección, sus índices, y agrega un índice de pendientes en los planes. Revisar cualquier colección preexistente antes de preparar. El mantenimiento requiere permisos de creación de índices y colección, en esta base. MongoDB rechaza los validadores de colección en admin. El backend verifica el esquema antes de insertar o copiar eventos; los clientes directos de Mongo pueden omitir esa comprobación.
+3. Configurar el servicio con `NODE_ENV=production`, `AUDIT_MODE=operativa` y `AUDIT_BUILD_VERSION` con el SHA del build. Mantener las credenciales en secretos. Validar disponibilidad, copia de eventos y ausencia de pérdidas antes de reactivar los jobs. La CLI y los campos consultables están en [la guía interna](AUDITORIA_EVENTOS.md).
+4. Ante fallos, pausar los jobs, restaurar la imagen y configuración anterior y conservar datos, pendientes e índices. Registrar el intervalo sin cobertura. Este rollback revierte el software y conserva las actividades confirmadas.
+5. Para volver al modo transaccional, confirmar una base de aplicación compatible fuera de `admin` y privilegios restringidos, detener temporalmente las escrituras y mantener el copiador hasta que queden cero pendientes. Verificar datos y probar el cambio antes de activar `AUDIT_MODE=transaccional`. Un cambio de roles por sí solo no habilita transacciones en `admin`.
+
 ## Scripts
 
 ```bash
